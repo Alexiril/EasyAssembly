@@ -1,4 +1,4 @@
 /.vscode
-/easmRuntime
-/test_result
 /__pycache__
+*.interp
+*.tokens
