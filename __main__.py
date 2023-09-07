@@ -64,6 +64,8 @@ if __name__ == '__main__':
             return filename
         if isfile(join(baseFolder, filename)):
             return join(baseFolder, filename)
+        if isfile(join("Lib", filename)):
+            return join("Lib", filename)
         return ''
 
     print(f"EASM2C Translator v{'.'.join(map(str, easm2cVersion))}\n")

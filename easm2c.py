@@ -30,7 +30,7 @@ def easm2cRuntime() -> str:
 #define __EASM_RUNTIME
 #include <stdint.h>
 #include <malloc.h>
-typedef struct stackNode { int64_t* data; struct stackNode* next; } stackNode;
+typedef struct stackNode { int64_t data; struct stackNode* next; } stackNode;
 stackNode* stackTop = NULL;
 int64_t __easm_ssize = 0;
 uint64_t easm_ssize() {
@@ -40,13 +40,13 @@ int64_t easm_spull() {
     if (stackTop == NULL)
         return 0;
     stackNode* temp = stackTop;
-    int64_t* data = temp->data;
+    int64_t data = temp->data;
     stackTop = stackTop->next;
     free(temp);
     __easm_ssize--;
     return data;
 }
-void easm_spush(uint64_t num) {
+void easm_spush(int64_t num) {
     stackNode* nptr = (stackNode*)malloc(sizeof(stackNode));
     if (nptr == NULL)
         return;
