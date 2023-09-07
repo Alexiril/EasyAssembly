@@ -2,6 +2,9 @@ Pony!
 
 // That's a comment here
 
+/* That's a block comment here 
+*/
+
 import native "stdio.h"
 
 func mem_test
@@ -123,7 +126,7 @@ func main
 
     delete struct_result
 
-    invoke printf("we passed deleting\n")
+    invoke printf("we passed deleting\n\x")
 
     push 0.5
     push 0.1
@@ -132,7 +135,7 @@ func main
     pull math_result
     invoke printf("we passed math. sum is %f\n", math_result as float)
 
-    stack size -> size
+    ssize -> size
     pull top
     push top
     invoke printf("by the way, stack size is %lld, top is %lld\n", size, top)

@@ -1,6 +1,5 @@
 from os import mkdir
 from os.path import isdir, join
-from random import randint
 from struct import pack, unpack
 
 from antlr4.Parser import ParserRuleContext  # type: ignore
@@ -8,7 +7,7 @@ from antlr4.Parser import ParserRuleContext  # type: ignore
 from easmLexer import easmLexer
 from easmListener import easmListener
 from easmParser import ErrorNode, TerminalNode, easmParser
-from unifiedException import UnifiedException, UnifiedExceptionLevel
+from shared import UnifiedException, UnifiedExceptionLevel, UnifiedId, UnifiedRules
 
 easm2cVersion: tuple[int, int, int] = (0, 2, 0)
 
@@ -25,32 +24,7 @@ easm2cVersion: tuple[int, int, int] = (0, 2, 0)
     SFV1 - Left shift with two non-integral
 """
 
-
-class easm2cTranslator(easmListener):
-
-    def __init__(self, filecode: str, filename: str) -> None:
-        super().__init__()
-        self.filecode = filecode
-        self.filename = filename
-        self.uids: list[str] = list()
-        self.exceptions: list[UnifiedException] = list()
-        self.terminals: list[TerminalNode | str] = list()
-        self.expressions: list[str] = []
-        self.newLocalObjects: list[str] = list()
-        self.initializedLocals: set[str] = set()
-        self.doubleResult: bool = False
-        self.functions: set[str] = set()
-        self.structures: set[str] = set()
-        self.neededStructures: set[str] = set()
-        self.labels: dict[str, set[str]] = dict()
-        self.labelsInFunction: set[str] = set()
-        self.neededLabels: set[str] = set()
-        self.decouplingId: dict[str, str] = dict()
-        self.decouplingUid: dict[str, str] = dict()
-        self.imports: set[str] = set()
-        self.result: list[str] = list()
-
-    def getRuntime(self) -> str:
+def easm2cRuntime() -> str:
         return """
 #ifndef __EASM_RUNTIME
 #define __EASM_RUNTIME
@@ -69,6 +43,7 @@ int64_t easm_spull() {
     int64_t* data = temp->data;
     stackTop = stackTop->next;
     free(temp);
+    __easm_ssize--;
     return data;
 }
 void easm_spush(uint64_t num) {
@@ -84,23 +59,31 @@ void easm_spush(uint64_t num) {
 
 """
 
+class easm2cTranslator(easmListener):
+
+    def __init__(self, ids: UnifiedId, rules: UnifiedRules, filecode: str, filename: str) -> None:
+        super().__init__()
+        self.ids = ids
+        self.rules = rules
+        self.filecode = filecode
+        self.filename = filename
+        self.exceptions: list[UnifiedException] = list()
+        self.terminals: list[TerminalNode | str] = list()
+        self.expressions: list[str] = []
+        self.newLocalObjects: list[str] = list()
+        self.initializedLocals: set[str] = set()
+        self.doubleResult: bool = False
+        self.functions: set[str] = set()
+        self.structures: set[str] = set()
+        self.neededStructures: set[str] = set()
+        self.labels: dict[str, set[str]] = dict()
+        self.labelsInFunction: set[str] = set()
+        self.neededLabels: set[str] = set()
+        self.imports: set[str] = set()
+        self.result: list[str] = list()
+
     def __str__(self) -> str:
-        return self.getRuntime() + "\n".join(self.result)
-
-    def getRandomUId(self) -> str:
-        result = '_'
-        while result in self.uids or result == '_':
-            result: str = '_' + hex(randint(0, 0xFFFFFF))
-        self.uids.append(result)
-        return result
-
-    def decoupleId(self, id: str) -> str:
-        if id in self.decouplingId:
-            return self.decouplingId[id]
-        uid = self.getRandomUId()
-        self.decouplingId[id] = uid
-        self.decouplingUid[uid] = id
-        return uid
+        return "\n".join(self.result)
 
     def handleException(self, code: str, level: UnifiedExceptionLevel, ctx: TerminalNode | ParserRuleContext, msg: str) -> None:
         line: int = 0
@@ -134,10 +117,12 @@ void easm_spush(uint64_t num) {
 
     def visitTerminal(self, node: TerminalNode | str) -> None:
         if node.getSymbol().type == easmLexer.FConst:  # type: ignore
-            packed = pack('d', float(node.getText()))  # type: ignore
+            packed: bytes = pack('d', float(node.getText()))  # type: ignore
             node = hex(unpack('Q', packed)[0])
         elif node.getSymbol().type == easmLexer.Id:  # type: ignore
-            node.getSymbol().text = self.decoupleId(node.getText())  # type: ignore
+            node.getSymbol().text = self.ids.decoupleId(node.getText())  # type: ignore
+            if not self.rules.decoupleIDs:
+                node.getSymbol().text = self.ids.getId(node.getText())  # type: ignore
         self.terminals.append(node)
 
     def enterProgram(self, ctx: easmParser.ProgramContext) -> None:
@@ -156,13 +141,13 @@ void easm_spush(uint64_t num) {
 
         if functionName in self.functions:
             self.handleException("FSN0", UnifiedExceptionLevel.Error, ctx,
-                                 f"Functions cannot have the same name: {self.decouplingUid[functionName]}")
+                                 f"Functions cannot have the same name: {self.ids.getId(functionName)}")
 
         self.functions.add(functionName)
 
         for initLocal in self.initializedLocals:
             self.expressions.insert(
-                0, f"int64_t {initLocal} = 0; // {self.decouplingUid[initLocal]}")
+                0, f"int64_t {initLocal} = 0; // {self.ids.getId(initLocal)}")
 
         if self.doubleResult:
             self.expressions.insert(0, "double dbres = 0;")
@@ -185,18 +170,18 @@ void easm_spush(uint64_t num) {
         for label in self.neededLabels:
             if not label in self.labelsInFunction:
                 self.handleException("LFN0", UnifiedExceptionLevel.Error, ctx,
-                                     f"Label is not found in the function: {self.decouplingUid[label]}")
+                                     f"Label is not found in the function: {self.ids.getId(label)}")
 
         self.labelsInFunction.clear()
         self.neededLabels.clear()
         self.initializedLocals.clear()
 
         self.result.append(
-            f"// {functionName} is {self.decouplingUid[functionName]}")
+            f"// {self.ids.getId(functionName)}")
 
         self.result.append(funcInC)
 
-        if self.decouplingUid[functionName] == "main":
+        if self.ids.getId(functionName) == "main":
             self.result.append("int main() {")
             self.result.append(f"    {functionName}();")
             self.result.append("    return 0;")
@@ -223,10 +208,12 @@ void easm_spush(uint64_t num) {
                                  f"Structures cannot have the same name: {structureName}")
 
         self.structures.add(structureName)
-        stringInside: str = ";\n    ".join(elements[::-1]) + ";"
+        for index in range(len(elements)):
+            elements[index] = f"{elements[index]}; // {self.ids.getId(elements[index].split()[1])}\n"
+        stringInside: str = "    ".join(elements[::-1])
 
         self.result.append(
-            f"// {structureName} is {self.decouplingUid[structureName]}")
+            f"// {self.ids.getId(structureName)}")
         self.result.append(f"typedef struct {structureName} {{")
         self.result.append(f"    {stringInside}")
         self.result.append(f"}} {structureName};\n")
@@ -265,7 +252,7 @@ void easm_spush(uint64_t num) {
         funcToInvoke = str(self.terminals.pop())
         self.terminals.pop()  # 'invoke' word
 
-        cstring = f"{self.decouplingUid[funcToInvoke]}({','.join(params[::-1])})"
+        cstring = f"{self.ids.getId(funcToInvoke)}({','.join(params[::-1])})"
 
         if type(ctx.parentCtx) == easmParser.RvalueContext:  # type: ignore
             self.terminals.append(cstring)
@@ -289,7 +276,7 @@ void easm_spush(uint64_t num) {
         self.terminals.pop()  # 'local' modifier word or 'new' word (depends on context)
         if ctx.getChildCount() == 3:
             self.terminals.pop()  # 'new' word
-            localID = self.getRandomUId()
+            localID = self.ids.getRandomUId()
             self.expressions.append(
                 f"{name}* {localID} = ({name}*)malloc(sizeof({name}));")
             self.terminals.append(f"(int64_t)({localID})")
@@ -360,6 +347,9 @@ void easm_spush(uint64_t num) {
         action = str(self.terminals.pop())
         left = str(self.terminals.pop())
 
+        if action == '=':
+            action = '=='
+
         self.terminals.append(f"{left} {action} {right}")
 
     def exitLvalue(self, ctx: easmParser.LvalueContext) -> None:
@@ -385,9 +375,9 @@ void easm_spush(uint64_t num) {
         else:
             kind = "int64_t"
 
-        if first in self.decouplingUid:
+        if first in self.ids.decouplingUid:
             first: str = f"*({kind}*)(& {first})"
-        if second in self.decouplingUid:
+        if second in self.ids.decouplingUid:
             second: str = f"*({kind}*)(& {second})"
 
         action = str(self.terminals.pop())

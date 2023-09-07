@@ -11,6 +11,7 @@ ponyPhrases: list[str] = [
 if __name__ == '__main__':
     print("EASM Interpreter")
 
+    from os.path import join
     from sys import argv
 
     from genericpath import isdir, isfile
@@ -36,29 +37,45 @@ if __name__ == '__main__':
     from antlr4 import (CommonTokenStream, FileStream,  # type: ignore
                         ParseTreeWalker)
 
-    from easm2c import easm2cBuilder, easm2cTranslator, easm2cVersion
+    from easm2c import easm2cBuilder, easm2cTranslator, easm2cVersion, easm2cRuntime
     from easmErrorListener import easmErrorListener
     from easmLexer import easmLexer
     from easmParser import easmParser
+    from shared import UnifiedId, UnifiedRules
 
     files: list[str] = [asmFile]
+    baseFolder: str = '.'
+    clearedAsmFile = asmFile.replace("\\", "/")
+    if len(clearedAsmFile.split("/")) > 1:
+        baseFolder = "/".join(clearedAsmFile.split("/")[:-1])
     includedFiles: set[str] = set()
     declaredFunction: dict[str, str] = dict()
     declaredStructures: dict[str, str] = dict()
     result: list[str] = list()
+    ids = UnifiedId()
+    rules = UnifiedRules()
 
     print(f"{choice(ponyPhrases)}\n")
 
     # Translate step
 
+    def findFile(filename: str) -> str:
+        if isfile(filename):
+            return filename
+        if isfile(join(baseFolder, filename)):
+            return join(baseFolder, filename)
+        return ''
+
     print(f"EASM2C Translator v{'.'.join(map(str, easm2cVersion))}\n")
 
     while len(files) > 0:
+        files[0] = findFile(files[0])
         filecode: str = files[0].translate({46: 95, 47: 95, 92: 95}).upper()
         if filecode in includedFiles:
             files.pop(0)
             continue
-        print(f"---- File: '{files[0]}' ----")
+        readableAddr = files[0].replace('\\', '/')
+        print(f"---- File: '{readableAddr}' ----")
         includedFiles.add(filecode)
         input_stream = FileStream(files[0], 'utf8')
         lexer = easmLexer(input_stream)
@@ -73,7 +90,7 @@ if __name__ == '__main__':
         if errorListener.errAmount > 0:
             print(f"{errorListener.errAmount} syntax errors found.\n")
         walker = ParseTreeWalker()
-        listener = easm2cTranslator(filecode, files[0])
+        listener = easm2cTranslator(ids, rules, filecode, files[0])
         walker.walk(listener, tree)
         result.insert(0, str(listener))
         imports: set[str] = listener.imports
@@ -105,6 +122,8 @@ if __name__ == '__main__':
         files.pop(0)
         files.extend(imports)
 
+    result.insert(0, easm2cRuntime())
+
     writable: str = "\n".join(result)
 
     print("Translated successfully.")
@@ -120,7 +139,6 @@ if __name__ == '__main__':
 
     # Run step
 
-    from os.path import join
     from subprocess import Popen
 
     Popen([join(outFolder, "native_build", "Debug", "easmProgram.exe")]).wait()

@@ -45,7 +45,7 @@ rvalue:
 newStat: 'new' 'local'? Id;
 ptr: 'ptr' (lvalue | SConst);
 not: 'not' (lvalue | IConst | FConst | CConst);
-stacksize: 'stack size' | 'ssize';
+stacksize: 'ssize';
 invoke: 'invoke' Id '(' ( cvalue (',' cvalue)*)? ')';
 getMem: (Id | valueType)? (lvalue | IConst) '[' (lvalue | IConst)? ']';
 binaryOperator: (
