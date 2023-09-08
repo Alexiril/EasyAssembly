@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 ponyPhrases: list[str] = [
     "You know what they say, friendship truly is the magic.",
     "Wow, that's my little pony!",
@@ -9,66 +11,113 @@ ponyPhrases: list[str] = [
 ]
 
 if __name__ == '__main__':
-    print("EASM Interpreter")
+    from random import choice, randint
 
+    separated = ("EASM\n\n" + choice(ponyPhrases)).split(" ")
+
+    print("\033[4m", end='')
+    for c in separated:
+        color: int = randint(91, 96)
+        print(f"\033[{color}m{c} ", end='')
+    print("\033[0m\n")
+
+    from argparse import ArgumentParser, Namespace
     from os.path import join
     from sys import argv
 
     from genericpath import isdir, isfile
 
-    if len(argv) < 3:
-        # TODO: explain what's wrong and how to use
-        print("Uncorrect using (wrong argv)")
-        exit(-1)
-    asmFile = argv[1]
-    if not isfile(asmFile):
-        print("Uncorrect using (wrong file)")  # TODO: explain
-        exit(-1)
+    from easm2c import easm2c
+    from shared import SharedHandler
 
-    from os import mkdir
+    avaliable_handlers: list[SharedHandler] = [easm2c]
+    avaliable_handlers_names: list[str] = [
+        x.name for x in avaliable_handlers]
 
-    outFolder = argv[2]
+    parser = ArgumentParser()
+    parser.add_argument('command', type=str,
+                        help="command that the handler will run. Commands:\n\ttranslate\n\tbuild\n\trun")
+    parser.add_argument('source', type=str, default="main.easm",
+                        help="path to source asm / easm / eab file")
+    parser.add_argument('out', type=str, default='.',
+                        help="path to output folder")
+    parser.add_argument('-d', '--handler', required=False, type=str, default="easm2c",
+                        help=f"set handler. Avaliable: {avaliable_handlers_names}")
+
+    args: Namespace = parser.parse_args(argv[1:])
+
+    if not args.handler in avaliable_handlers_names:
+        print(f"Sorry, the handler '{args.handler}' is not avaliable.")
+        print(f"Avaliable handler: {avaliable_handlers_names}")
+        exit()
+
+    handlername = str(args.handler)
+
+    handler: SharedHandler = list(filter(
+        lambda x: x.name == handlername, avaliable_handlers))[0]
+
+    args.command = args.command.lower()
+
+    if not args.command in ["translate", "build", "run"]:
+        print(f"Sorry, {args.command} is not the correct command.")
+        print("Avaliable commands are: 'translate', 'build', 'run'")
+        exit()
+
+    if not isfile(args.source):
+        print(
+            f"Sorry, {args.source} is not the correct filename of source code.")
+        exit()
+
+    outFolder = args.out
 
     if not isdir(outFolder):
-        mkdir(outFolder)
+        from os import mkdir
 
-    from random import choice
+        mkdir(outFolder)
 
     from antlr4 import (CommonTokenStream, FileStream,  # type: ignore
                         ParseTreeWalker)
 
-    from easm2c import easm2cBuilder, easm2cTranslator, easm2cVersion, easm2cRuntime
     from easmErrorListener import easmErrorListener
     from easmLexer import easmLexer
     from easmParser import easmParser
-    from shared import UnifiedId, UnifiedRules
+    from shared import SharedId, SharedRules
 
-    files: list[str] = [asmFile]
+    files: list[str] = [args.source]
     baseFolder: str = '.'
-    clearedAsmFile = asmFile.replace("\\", "/")
+    clearedAsmFile = args.source.replace("\\", "/")
     if len(clearedAsmFile.split("/")) > 1:
         baseFolder = "/".join(clearedAsmFile.split("/")[:-1])
     includedFiles: set[str] = set()
     declaredFunction: dict[str, str] = dict()
     declaredStructures: dict[str, str] = dict()
     result: list[str] = list()
-    ids = UnifiedId()
-    rules = UnifiedRules()
-
-    print(f"{choice(ponyPhrases)}\n")
+    ids = SharedId()
+    rules = SharedRules()
 
     # Translate step
 
-    def findFile(filename: str) -> str:
-        if isfile(filename):
-            return filename
-        if isfile(join(baseFolder, filename)):
-            return join(baseFolder, filename)
-        if isfile(join("Lib", filename)):
-            return join("Lib", filename)
-        return ''
+    print("Translating starts.")
 
-    print(f"EASM2C Translator v{'.'.join(map(str, easm2cVersion))}\n")
+    def findFile(filename: str) -> str:
+        def checkExt(filename: str) -> str:
+            if isfile(filename):
+                return filename
+            if isfile(f"{filename}.asm"):
+                return f"{filename}.asm"
+            if isfile(f"{filename}.easm"):
+                return f"{filename}.easm"
+            if isfile(f"{filename}.eab"):
+                return f"{filename}.eab"
+            return ''
+        value: str = checkExt(filename)
+        if value == '':
+            value = checkExt(join(baseFolder, filename))
+        if value == '':
+            value = checkExt(join("Lib", filename))
+        return value
+
+    print(f"{handler.name.upper()} Handler v{'.'.join(map(str, handler.version))}\n")
 
     while len(files) > 0:
         files[0] = findFile(files[0])
@@ -92,7 +141,7 @@ if __name__ == '__main__':
         if errorListener.errAmount > 0:
             print(f"{errorListener.errAmount} syntax errors found.\n")
         walker = ParseTreeWalker()
-        listener = easm2cTranslator(ids, rules, filecode, files[0])
+        listener = handler.translator(ids, rules, filecode, files[0])
         walker.walk(listener, tree)
         result.insert(0, str(listener))
         imports: set[str] = listener.imports
@@ -124,23 +173,34 @@ if __name__ == '__main__':
         files.pop(0)
         files.extend(imports)
 
-    result.insert(0, easm2cRuntime())
+    result.insert(0, handler.runtime)
 
     writable: str = "\n".join(result)
 
     print("Translated successfully.")
-    print("Building starts:")
+
+    with open(join(outFolder, "EASMTranslated.c"), 'w') as cfile:
+        cfile.write(writable)
+
+    if args.command == "translate":
+        exit()
 
     # Building step
 
-    builder = easm2cBuilder(outFolder, writable)
+    print("Building starts.")
+
+    builder = handler.builder(outFolder)
     builder.build()
 
     if not builder.exceptions:
         print("Builded successfully.")
 
+    if args.command == "build":
+        exit()
+
     # Run step
 
-    from subprocess import Popen
+    handler.runner(outFolder).run()
 
-    Popen([join(outFolder, "native_build", "Debug", "easmProgram.exe")]).wait()
+    if args.command == "run":
+        exit()

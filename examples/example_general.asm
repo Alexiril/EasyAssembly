@@ -7,6 +7,7 @@ Pony!
 
 import native "stdio.h"
 
+// [index, value] => [memory_section]
 func mem_test
     pull value
     pull index
@@ -23,6 +24,7 @@ struct Line
     Point p1
     Point p2
 
+// [y, x] => [line]
 func struct_test
     pull x
     pull y
@@ -45,6 +47,7 @@ func struct_test
 
     push line
 
+// [two, one] => [dsum]
 func math_test
     pull one
     pull two
@@ -64,6 +67,7 @@ func math_test
 
     push dsum
 
+// [b, a] => []
 func flow_control_test
     7 -> a
     8 -> b
@@ -90,12 +94,14 @@ func flow_control_test
 
     jump if counter > 0 iteration
 
+// [] => []
 func pass_test
     pass "printf(\"pass is working!\n\");"
 
 func main
     90 -> deg90
 
+    // Technically, you can call external C void functions the same way.
     call pass_test
 
     push 10
@@ -126,7 +132,7 @@ func main
 
     delete struct_result
 
-    invoke printf("we passed deleting\n\x")
+    invoke printf("we passed deleting\n")
 
     push 0.5
     push 0.1

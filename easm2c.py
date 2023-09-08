@@ -5,27 +5,15 @@ from struct import pack, unpack
 from antlr4.Parser import ParserRuleContext  # type: ignore
 
 from easmLexer import easmLexer
-from easmListener import easmListener
 from easmParser import ErrorNode, TerminalNode, easmParser
-from shared import UnifiedException, UnifiedExceptionLevel, UnifiedId, UnifiedRules
+from shared import (SharedBuilder, SharedException,
+                    SharedExceptionLevel, SharedId,
+                    SharedRules, SharedHandler, SharedRunner,
+                    SharedTranslator)
 
 easm2cVersion: tuple[int, int, int] = (0, 2, 0)
 
-
-"""
-    Exceptions:
-    VEN0 - Visit error node exception
-    FSN0 - Functions cannot have the same name
-    SSN0 - Structures cannot have the same name
-    LSN0 - Labels inside one function cannot have the same name
-    LFN0 - Label was not found in the function
-    RFV0 - Reminder of two non-integral
-    SFV0 - Right shift with two non-integral
-    SFV1 - Left shift with two non-integral
-"""
-
-def easm2cRuntime() -> str:
-        return """
+easm2cRuntime = """
 #ifndef __EASM_RUNTIME
 #define __EASM_RUNTIME
 #include <stdint.h>
@@ -59,33 +47,35 @@ void easm_spush(int64_t num) {
 
 """
 
-class easm2cTranslator(easmListener):
+"""
+    Exceptions:
+    VEN0 - Visit error node exception
+    FSN0 - Functions cannot have the same name
+    SSN0 - Structures cannot have the same name
+    LSN0 - Labels inside one function cannot have the same name
+    LFN0 - Label was not found in the function
+    RFV0 - Reminder of two non-integral
+    SFV0 - Right shift with two non-integral
+    SFV1 - Left shift with two non-integral
+"""
 
-    def __init__(self, ids: UnifiedId, rules: UnifiedRules, filecode: str, filename: str) -> None:
-        super().__init__()
-        self.ids = ids
-        self.rules = rules
-        self.filecode = filecode
-        self.filename = filename
-        self.exceptions: list[UnifiedException] = list()
+
+class easm2cTranslator(SharedTranslator):
+
+    def __init__(self, ids: SharedId, rules: SharedRules, filecode: str, filename: str) -> None:
+        super().__init__(ids, rules, filecode, filename)
         self.terminals: list[TerminalNode | str] = list()
         self.expressions: list[str] = []
         self.newLocalObjects: list[str] = list()
         self.initializedLocals: set[str] = set()
         self.doubleResult: bool = False
-        self.functions: set[str] = set()
-        self.structures: set[str] = set()
         self.neededStructures: set[str] = set()
         self.labels: dict[str, set[str]] = dict()
         self.labelsInFunction: set[str] = set()
         self.neededLabels: set[str] = set()
-        self.imports: set[str] = set()
-        self.result: list[str] = list()
-
-    def __str__(self) -> str:
-        return "\n".join(self.result)
-
-    def handleException(self, code: str, level: UnifiedExceptionLevel, ctx: TerminalNode | ParserRuleContext, msg: str) -> None:
+        
+        
+    def handleException(self, code: str, level: SharedExceptionLevel, ctx: TerminalNode | ParserRuleContext, msg: str) -> None:
         line: int = 0
         column: int = 0
 
@@ -97,7 +87,7 @@ class easm2cTranslator(easmListener):
             column = ctx.start.column  # type: ignore
 
         self.exceptions.append(
-            UnifiedException(
+            SharedException(
                 code,
                 level,
                 line,  # type: ignore
@@ -110,7 +100,7 @@ class easm2cTranslator(easmListener):
     def visitErrorNode(self, node: ErrorNode) -> None:
         self.handleException(
             "VEN0",
-            UnifiedExceptionLevel.Error,
+            SharedExceptionLevel.Error,
             node,
             f"Unexpected expression: \"{node}\""
         )
@@ -140,7 +130,7 @@ class easm2cTranslator(easmListener):
         self.terminals.pop()  # 'func' word
 
         if functionName in self.functions:
-            self.handleException("FSN0", UnifiedExceptionLevel.Error, ctx,
+            self.handleException("FSN0", SharedExceptionLevel.Error, ctx,
                                  f"Functions cannot have the same name: {self.ids.getId(functionName)}")
 
         self.functions.add(functionName)
@@ -169,7 +159,7 @@ class easm2cTranslator(easmListener):
 
         for label in self.neededLabels:
             if not label in self.labelsInFunction:
-                self.handleException("LFN0", UnifiedExceptionLevel.Error, ctx,
+                self.handleException("LFN0", SharedExceptionLevel.Error, ctx,
                                      f"Label is not found in the function: {self.ids.getId(label)}")
 
         self.labelsInFunction.clear()
@@ -204,7 +194,7 @@ class easm2cTranslator(easmListener):
         self.terminals.pop()  # 'struct' word
 
         if structureName in self.structures:
-            self.handleException("SSN0", UnifiedExceptionLevel.Error, ctx,
+            self.handleException("SSN0", SharedExceptionLevel.Error, ctx,
                                  f"Structures cannot have the same name: {structureName}")
 
         self.structures.add(structureName)
@@ -228,11 +218,11 @@ class easm2cTranslator(easmListener):
         label = str(self.terminals.pop())
 
         if label in self.labelsInFunction:
-            self.handleException("LSN0", UnifiedExceptionLevel.Error, ctx,
-                                 f"Labels inside one function cannot have the same name: {label}")
+            self.handleException("LSN0", SharedExceptionLevel.Error, ctx,
+                                 f"Labels inside one function cannot have the same name: {self.ids.getId(label)}")
         self.labelsInFunction.add(label)
 
-        self.expressions.append(f"{label}:")
+        self.expressions.append(f"{label}: // {self.ids.getId(label)}")
 
     def exitCall(self, ctx: easmParser.CallContext) -> None:
         funcToCall = str(self.terminals.pop())
@@ -365,7 +355,6 @@ class easm2cTranslator(easmListener):
         self.terminals.pop()  # ',' symbol
         first = str(self.terminals.pop())
 
-        
         double: bool = False
         if ctx.getChildCount() == 5:
             kind = str(self.terminals.pop())
@@ -393,7 +382,7 @@ class easm2cTranslator(easmListener):
                 result = (f"({first}) / ({second})")
             case 'rem':
                 if not "int" in kind:
-                    self.handleException("RFV0", UnifiedExceptionLevel.Error, ctx,
+                    self.handleException("RFV0", SharedExceptionLevel.Error, ctx,
                                          f"Attempt to get the reminder of two non-integral values: {first}, {second}")
                 result = (f"({first}) % ({second})")
             case 'and':
@@ -410,12 +399,12 @@ class easm2cTranslator(easmListener):
                 result = (f"~(({first}) ^ ({second}))")
             case 'shr':
                 if not "int" in kind:
-                    self.handleException("SFV0", UnifiedExceptionLevel.Error, ctx,
+                    self.handleException("SFV0", SharedExceptionLevel.Error, ctx,
                                          f"Attempt to shift with two non-integral values: {first}, {second}")
                 result = (f"({first}) >> ({second})")
             case 'shl':
                 if not "int" in kind:
-                    self.handleException("SFV1", UnifiedExceptionLevel.Error, ctx,
+                    self.handleException("SFV1", SharedExceptionLevel.Error, ctx,
                                          f"Attempt to shift with two non-integral values: {first}, {second}")
                 result = (f"({first}) << ({second})")
             case _:
@@ -484,22 +473,15 @@ class easm2cTranslator(easmListener):
 
     def exitCast(self, ctx: easmParser.CastContext) -> None:
         kind = str(self.terminals.pop())
-        self.terminals.pop() # 'as' word
+        self.terminals.pop()  # 'as' word
         value = str(self.terminals.pop())
 
         self.terminals.append(f"*(({kind}*)(& {value}))")
 
-class easm2cBuilder:
 
-    def __init__(self, folder: str, code: str) -> None:
-        self.exceptions: list[UnifiedException] = list()
-        self.code = code
-        self.folder = folder
+class easm2cBuilder(SharedBuilder):
 
     def build(self) -> None:
-        with open(join(self.folder, "EASMTranslated.c"), 'w') as cfile:
-            cfile.write(self.code)
-
         with open(join(self.folder, "CMakeLists.txt"), 'w') as cmakefile:
             cmakefile.write("cmake_minimum_required(VERSION 3.20)\n")
             cmakefile.write("set(CMAKE_MESSAGE_LOG_LEVEL WARNING)\n")
@@ -528,12 +510,29 @@ class easm2cBuilder:
         else:
 
             self.exceptions.append(
-                UnifiedException(
+                SharedException(
                     "NNN",
-                    UnifiedExceptionLevel.Error,
+                    SharedExceptionLevel.Error,
                     0,  # type: ignore
                     0,  # type: ignore
                     "",
                     "To build the result you need cmake and one native C compiler to be installed."
                 )
             )
+
+
+class easm2cRunner(SharedRunner):
+
+    def run(self) -> None:
+
+        from subprocess import Popen
+        Popen([join(self.outFolder, "native_build", "Debug", "easmProgram.exe")]).wait()
+
+easm2c = SharedHandler(
+    "easm2c",
+    easm2cTranslator, 
+    easm2cBuilder,
+    easm2cRunner,
+    easm2cRuntime,
+    easm2cVersion
+)

@@ -1,11 +1,13 @@
 from enum import Enum
 from random import randint
 
-class UnifiedRules:
+from easmListener import easmListener
+
+class SharedRules:
 
     decoupleIDs: bool = True
 
-class UnifiedId:
+class SharedId:
 
     def __init__(self) -> None:
         self.uids: list[str] = list()
@@ -15,7 +17,7 @@ class UnifiedId:
     def getRandomUId(self) -> str:
         result = '_'
         while result in self.uids or result == '_':
-            result: str = '_' + hex(randint(0, 0xFFFFFF))
+            result: str = '_' + hex(randint(0, 0xFF_FFFF_FFFF))
         self.uids.append(result)
         return result
 
@@ -31,17 +33,17 @@ class UnifiedId:
         return self.decouplingUid.get(uid, '')
 
 
-class UnifiedExceptionLevel(Enum):
+class SharedExceptionLevel(Enum):
     Error = 0
     Warning = 1
     Notice = 2
 
 
-class UnifiedException:
+class SharedException:
 
-    def __init__(self, code: str, level: UnifiedExceptionLevel, line: int, column: int, file: str, msg: str) -> None:
+    def __init__(self, code: str, level: SharedExceptionLevel, line: int, column: int, file: str, msg: str) -> None:
         self.code: str = code.upper()
-        self.level: UnifiedExceptionLevel = level
+        self.level: SharedExceptionLevel = level
         self.line: int = line
         self.column: int = column
         self.file = file
@@ -49,3 +51,51 @@ class UnifiedException:
 
     def __str__(self) -> str:
         return f"({self.code}) {self.level.name} at ({self.line}:{self.column}) in '{self.file}':\n   {self.msg}\n"
+
+
+class SharedBuilder:
+
+    def __init__(self, folder: str) -> None:
+        self.exceptions: list[SharedException] = list()
+        self.folder = folder
+
+    def build(self) -> None:
+        pass
+
+class SharedTranslator(easmListener):
+
+    def __init__(self, ids: SharedId, rules: SharedRules, filecode: str, filename: str) -> None:
+        super().__init__()
+        self.ids = ids
+        self.rules = rules
+        self.filecode = filecode
+        self.filename = filename
+        self.imports: set[str] = set()
+        self.functions: set[str] = set()
+        self.structures: set[str] = set()
+        self.exceptions: list[SharedException] = list()
+        self.result: list[str] = list()
+
+    def __str__(self) -> str:
+        return "\n".join(self.result)
+
+
+
+class SharedRunner:
+
+    def __init__(self, outFolder: str) -> None:
+        self.outFolder: str = outFolder
+
+    def run(self) -> None:
+        return
+
+class SharedHandler:
+
+    def __init__(self, name: str, translator: type[SharedTranslator], builder: type[SharedBuilder], runner: type[SharedRunner], runtime: str, version: tuple[int, int, int]) -> None:
+        self.name: str = name
+        self.translator: type[SharedTranslator] = translator
+        self.builder: type[SharedBuilder] = builder
+        self.runner: type[SharedRunner] = runner
+        self.runtime: str = runtime
+        self.version: tuple[int, int, int] = version
+        
