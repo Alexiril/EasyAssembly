@@ -89,15 +89,6 @@ class easmListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by easmParser#call.
-    def enterCall(self, ctx:easmParser.CallContext):
-        pass
-
-    # Exit a parse tree produced by easmParser#call.
-    def exitCall(self, ctx:easmParser.CallContext):
-        pass
-
-
     # Enter a parse tree produced by easmParser#move.
     def enterMove(self, ctx:easmParser.MoveContext):
         pass
@@ -170,6 +161,15 @@ class easmListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by easmParser#call.
+    def enterCall(self, ctx:easmParser.CallContext):
+        pass
+
+    # Exit a parse tree produced by easmParser#call.
+    def exitCall(self, ctx:easmParser.CallContext):
+        pass
+
+
     # Enter a parse tree produced by easmParser#ptr.
     def enterPtr(self, ctx:easmParser.PtrContext):
         pass
@@ -194,15 +194,6 @@ class easmListener(ParseTreeListener):
 
     # Exit a parse tree produced by easmParser#stacksize.
     def exitStacksize(self, ctx:easmParser.StacksizeContext):
-        pass
-
-
-    # Enter a parse tree produced by easmParser#invoke.
-    def enterInvoke(self, ctx:easmParser.InvokeContext):
-        pass
-
-    # Exit a parse tree produced by easmParser#invoke.
-    def exitInvoke(self, ctx:easmParser.InvokeContext):
         pass
 
 

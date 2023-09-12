@@ -12,19 +12,17 @@ expression:
 	| delete
 	| jump
 	| label
-	| call
 	| move
+	| call
 	| push
 	| pull	
 	| inc
-	| dec
-	| invoke;
+	| dec;
 
 pass: 'pass' SConst;
 delete: 'delete' Id;
 jump: 'jump' ('if' condition)? Id;
 label: Id ':';
-call: 'call' Id;
 move: rvalue '->' lvalue;
 push: 'push' cvalue;
 pull: 'pull' lvalue?;
@@ -35,7 +33,7 @@ dec: 'dec' (lvalue | IConst | FConst | CConst);
 rvalue:
 	newStat
 	| stacksize
-	| invoke
+	| call
 	| getMem
 	| ptr
 	| not
@@ -43,10 +41,10 @@ rvalue:
 	| cvalue;
 
 newStat: 'new' 'local'? Id;
+call: 'call' Id ('(' ( cvalue (',' cvalue)*)? ')')?;
 ptr: 'ptr' (lvalue | SConst);
 not: 'not' (lvalue | IConst | FConst | CConst);
 stacksize: 'ssize';
-invoke: 'invoke' Id '(' ( cvalue (',' cvalue)*)? ')';
 getMem: (Id | valueType)? (lvalue | IConst) '[' (lvalue | IConst)? ']';
 binaryOperator: (
 		'and'

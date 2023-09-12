@@ -75,21 +75,21 @@ func flow_control_test
     jump if a > b more
     jump if a < b less
 
-    invoke printf("a = b\n")
+    call printf("a = b\n")
     jump loop
     
     more:
-    invoke printf("a > b\n")
+    call printf("a > b\n")
     jump loop
     
     less:
-    invoke printf("a < b\n")
+    call printf("a < b\n")
 
     loop:
     pull counter
 
     iteration:
-    invoke printf("counter value is %lld\n", counter)
+    call printf("counter value is %lld\n", counter)
     dec counter
 
     jump if counter > 0 iteration
@@ -101,7 +101,8 @@ func pass_test
 func main
     90 -> deg90
 
-    // Technically, you can call external C void functions the same way.
+    call printf("here first call goes")
+
     call pass_test
 
     push 10
@@ -114,9 +115,9 @@ func main
     call mem_test
 
     pull mem_test_result
-    invoke printf("value is %lld\n", mem_test_result)
+    call printf("value is %lld\n", mem_test_result)
 
-    invoke printf("yeah, str is %s\n", str)
+    call printf("yeah, str is %s\n", str)
 
     push 17
     push 20
@@ -132,16 +133,16 @@ func main
 
     delete struct_result
 
-    invoke printf("we passed deleting\n")
+    call printf("we passed deleting\n")
 
     push 0.5
     push 0.1
     call math_test
 
     pull math_result
-    invoke printf("we passed math. sum is %f\n", math_result as float)
+    call printf("we passed math. sum is %f\n", math_result as float)
 
     ssize -> size
     pull top
     push top
-    invoke printf("by the way, stack size is %lld, top is %lld\n", size, top)
+    call printf("by the way, stack size is %lld, top is %lld\n", size, top)

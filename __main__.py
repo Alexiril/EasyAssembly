@@ -41,10 +41,14 @@ if __name__ == '__main__':
                         help="path to source asm / easm / eab file")
     parser.add_argument('out', type=str, default='.',
                         help="path to output folder")
-    parser.add_argument('-d', '--handler', required=False, type=str, default="easm2c",
+    parser.add_argument('-hd', '--handler', required=False, type=str, default="easm2c",
                         help=f"set handler. Avaliable: {avaliable_handlers_names}")
+    parser.add_argument('-nr', '--noruntime', required=False, action='store_true',
+                        help="removes runtime part from the translated result")
 
     args: Namespace = parser.parse_args(argv[1:])
+
+    noruntime: bool = args.noruntime
 
     if not args.handler in avaliable_handlers_names:
         print(f"Sorry, the handler '{args.handler}' is not avaliable.")
@@ -84,6 +88,7 @@ if __name__ == '__main__':
     from shared import SharedId, SharedRules
 
     files: list[str] = [args.source]
+    preparedFiles: list[str] = list()
     baseFolder: str = '.'
     clearedAsmFile = args.source.replace("\\", "/")
     if len(clearedAsmFile.split("/")) > 1:
@@ -91,13 +96,14 @@ if __name__ == '__main__':
     includedFiles: set[str] = set()
     declaredFunction: dict[str, str] = dict()
     declaredStructures: dict[str, str] = dict()
+    perFileCodeConnection: list[dict[int, int]] = list()
+    codeConnection: dict[int, tuple[str, int]] = dict()
     result: list[str] = list()
     ids = SharedId()
     rules = SharedRules()
+    rules.noRuntime = noruntime
 
     # Translate step
-
-    print("Translating starts.")
 
     def findFile(filename: str) -> str:
         def checkExt(filename: str) -> str:
@@ -147,10 +153,11 @@ if __name__ == '__main__':
         imports: set[str] = listener.imports
         funcs: set[str] = listener.functions
         structs: set[str] = listener.structures
+        perFileCodeConnection.insert(0, listener.expressionConnection)
         err: bool = len(listener.exceptions) > 0
         if err:
             for exception in listener.exceptions:
-                print(exception)
+                print(f"\033[91m{exception}\033[0m")
         for func in funcs:
             if func in declaredFunction:
                 print(
@@ -170,14 +177,27 @@ if __name__ == '__main__':
                 f"{len(listener.exceptions)} exceptions located.")
             print("Stopping translating. Needs to fix errors to continue.")
             exit(-1)
+        preparedFiles.insert(0, files[0])
         files.pop(0)
         files.extend(imports)
 
-    result.insert(0, handler.runtime)
+    if not noruntime:
+        result.insert(0, handler.runtime)
+        perFileCodeConnection.insert(
+            0, {x: -1 for x in range(len(handler.runtime.split("\n")))})
+        preparedFiles.insert(0, "EASM Runtime")
+
+    finalLine = 0
+    for index in range(len(result)):
+        for line in range(len(result[index].split("\n"))):
+            codeConnection[finalLine] = (preparedFiles[index], perFileCodeConnection[index][line])
+            finalLine += 1
+
+    print(codeConnection)
 
     writable: str = "\n".join(result)
 
-    print("Translated successfully.")
+    print("\033[92mTranslated successfully.\033[0m")
 
     with open(join(outFolder, "EASMTranslated.c"), 'w') as cfile:
         cfile.write(writable)
@@ -187,13 +207,15 @@ if __name__ == '__main__':
 
     # Building step
 
-    print("Building starts.")
-
     builder = handler.builder(outFolder)
     builder.build()
 
     if not builder.exceptions:
-        print("Builded successfully.")
+        print("\033[92mBuilded successfully.\033[0m")
+    else:
+        for exception in builder.exceptions:
+            print(f"\033[91m{exception}\033[0m")
+        exit()
 
     if args.command == "build":
         exit()

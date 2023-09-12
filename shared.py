@@ -3,9 +3,12 @@ from random import randint
 
 from easmListener import easmListener
 
+
 class SharedRules:
 
     decoupleIDs: bool = True
+    noRuntime: bool = False
+
 
 class SharedId:
 
@@ -28,7 +31,7 @@ class SharedId:
         self.decouplingId[id] = uid
         self.decouplingUid[uid] = id
         return uid
-    
+
     def getId(self, uid: str) -> str:
         return self.decouplingUid.get(uid, '')
 
@@ -62,23 +65,24 @@ class SharedBuilder:
     def build(self) -> None:
         pass
 
+
 class SharedTranslator(easmListener):
 
     def __init__(self, ids: SharedId, rules: SharedRules, filecode: str, filename: str) -> None:
         super().__init__()
-        self.ids = ids
-        self.rules = rules
-        self.filecode = filecode
-        self.filename = filename
+        self.ids: SharedId = ids
+        self.rules: SharedRules = rules
+        self.filecode: str = filecode
+        self.filename: str = filename
         self.imports: set[str] = set()
         self.functions: set[str] = set()
         self.structures: set[str] = set()
+        self.expressionConnection: list[int] = list()
         self.exceptions: list[SharedException] = list()
         self.result: list[str] = list()
 
     def __str__(self) -> str:
         return "\n".join(self.result)
-
 
 
 class SharedRunner:
@@ -89,6 +93,7 @@ class SharedRunner:
     def run(self) -> None:
         return
 
+
 class SharedHandler:
 
     def __init__(self, name: str, translator: type[SharedTranslator], builder: type[SharedBuilder], runner: type[SharedRunner], runtime: str, version: tuple[int, int, int]) -> None:
@@ -98,4 +103,3 @@ class SharedHandler:
         self.runner: type[SharedRunner] = runner
         self.runtime: str = runtime
         self.version: tuple[int, int, int] = version
-        

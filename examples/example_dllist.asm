@@ -18,7 +18,7 @@ func main
 
 	pull head
 
-	invoke printf("value of head is: %lld\n", DLListNode head.data)
+	call printf("value of head is: %lld\n", DLListNode head.data)
 
 	push head
 
@@ -27,7 +27,7 @@ func main
 	pull head
 	pull deletedData
 
-	invoke printf("value of head is: %lld and old data is: %lld\n", DLListNode head.data, deletedData)
+	call printf("value of head is: %lld and old data is: %lld\n", DLListNode head.data, deletedData)
 
 	1 -> counter
 
@@ -46,7 +46,7 @@ func main
 	push head
 	call DLListSize
 	pull size
-	invoke printf("okay, now the head is: %lld, and the size is: %lld\n", DLListNode head.data, size)
+	call printf("okay, now the head is: %lld, and the size is: %lld\n", DLListNode head.data, size)
 
 	push 1
 	push head
@@ -57,7 +57,7 @@ func main
 	call DLListSize
 	pull size
 	
-	invoke printf("okay, now the head is: %lld, and the size is: %lld, and deleted was: %lld\n", DLListNode head.data, size, deletedData)
+	call printf("okay, now the head is: %lld, and the size is: %lld, and deleted was: %lld\n", DLListNode head.data, size, deletedData)
 
 	push 999
 	push 2
@@ -78,7 +78,7 @@ func main
 	call DLListGetAt
 	pull node
 
-	invoke printf("data with index %lld is %lld\n", counter, DLListNode node.data)
+	call printf("data with index %lld is %lld\n", counter, DLListNode node.data)
 
 	inc counter
 
@@ -92,4 +92,4 @@ func main
 	call DLListSize
 	pull size
 
-	invoke printf("list size is %lld\n", size)
+	call printf("list size is %lld\n", size)
