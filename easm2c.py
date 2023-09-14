@@ -72,7 +72,6 @@ class easm2cTranslator(SharedTranslator):
         self.newLocalObjects: list[str] = list()
         self.initializedLocals: set[str] = set()
         self.doubleResult: bool = False
-        self.neededStructures: set[str] = set()
         self.labels: dict[str, set[str]] = dict()
         self.labelsInFunction: set[str] = set()
         self.neededLabels: set[str] = set()
@@ -132,7 +131,7 @@ class easm2cTranslator(SharedTranslator):
         self.result.append("// < Auto generated using EASM2C >\n")
         
         for _ in range(3):
-            self.expressionConnection.append(ctx.stop.line) # type: ignore
+            self.expressionConnection.append(ctx.start.line) # type: ignore
 
     def exitFunction(self, ctx: easmParser.FunctionContext) -> None:
         functionName: str = str(self.terminals.pop())
@@ -149,22 +148,22 @@ class easm2cTranslator(SharedTranslator):
                 0, f"int64_t {initLocal} = 0; // {self.ids.getId(initLocal)}")
         
         for _ in range(len(self.initializedLocals)):
-            self.expressionConnection.append(ctx.start.line) # type: ignore
+            self.opcodesConnection.insert(0, ctx.start.line) # type: ignore
 
         if self.doubleResult:
             self.expressions.insert(0, "double dbres = 0;")
-            self.expressionConnection.append(ctx.start.line) # type: ignore
+            self.opcodesConnection.append(ctx.start.line) # type: ignore
         self.doubleResult = False
 
         for localObject in self.newLocalObjects:
             self.expressions.append(f"if ((void *){localObject} != NULL)")
             self.expressions.append(f"    free((void *){localObject});")
         for _ in range(len(self.newLocalObjects) * 2):
-            self.expressionConnection.append(ctx.start.line) # type: ignore
+            self.opcodesConnection.append(ctx.start.line) # type: ignore
         self.newLocalObjects.clear()
 
         self.expressions.append("return;")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
         expressions: str = '\n    '.join(self.expressions)
 
         funcInC: str = f"void {functionName} () {{\n    {expressions}  \n}}\n"
@@ -187,7 +186,13 @@ class easm2cTranslator(SharedTranslator):
 
         self.result.append(funcInC)
 
-        for _ in range(5):
+        for _ in range(2):
+            self.expressionConnection.append(ctx.start.line) # type: ignore
+
+        self.expressionConnection.extend(self.opcodesConnection)
+        self.opcodesConnection.clear()
+
+        for _ in range(3):
             self.expressionConnection.append(ctx.start.line) # type: ignore
 
         if self.ids.getId(functionName) == "main":
@@ -217,27 +222,29 @@ class easm2cTranslator(SharedTranslator):
 
         if structureName in self.structures:
             self.handleException("SSN0", SharedExceptionLevel.Error, ctx,
-                                 f"Structures cannot have the same name: {structureName}")
+                                 f"Structures cannot have the same name: {self.ids.getId(structureName)}")
 
         self.structures.add(structureName)
         for index in range(len(elements)):
             elements[index] = f"{elements[index]}; // {self.ids.getId(elements[index].split()[1])}\n"
         stringInside: str = "    ".join(elements[::-1])
-        for _ in range(len(elements)):
-            self.expressionConnection.append(ctx.start.line) # type: ignore
 
-        self.result.append(
-            f"// {self.ids.getId(structureName)}")
+        self.result.append(f"// {self.ids.getId(structureName)}")
         self.result.append(f"typedef struct {structureName} {{")
         self.result.append(f"    {stringInside}")
         self.result.append(f"}} {structureName};\n")
-        for index in range(4):
+        for index in range(2):
+            self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.expressionConnection.extend(self.opcodesConnection)
+        self.opcodesConnection.clear()
+        for index in range(3):
             self.expressionConnection.append(ctx.start.line) # type: ignore
 
     def exitDataTypeDeclaration(self, ctx: easmParser.DataTypeDeclarationContext) -> None:
         value = str(self.terminals.pop())
         kind = str(self.terminals.pop())
         self.terminals.append(f"{kind} {value}")
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitLabel(self, ctx: easmParser.LabelContext) -> None:
         self.terminals.pop()  # ':' symbol
@@ -249,7 +256,7 @@ class easm2cTranslator(SharedTranslator):
         self.labelsInFunction.add(label)
 
         self.expressions.append(f"{label}: // {self.ids.getId(label)}")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitCall(self, ctx: easmParser.CallContext) -> None:
         cstring = ""
@@ -268,6 +275,7 @@ class easm2cTranslator(SharedTranslator):
             cstring = f"{self.ids.getId(funcToInvoke)}({','.join(params[::-1])})"
         else:
             cstring = f"{lastTerminal} ()"
+            self.neededFunctions.add(lastTerminal)
         
         self.terminals.pop()  # 'call' word    
         
@@ -278,7 +286,7 @@ class easm2cTranslator(SharedTranslator):
                 self.terminals.append(cstring)
         else:
             self.expressions.append(cstring + ";")
-            self.expressionConnection.append(ctx.start.line) # type: ignore
+            self.opcodesConnection.append(ctx.start.line) # type: ignore
         
     def exitPass(self, ctx: easmParser.PassContext) -> None:
         passing: str = str(self.terminals.pop())
@@ -287,11 +295,13 @@ class easm2cTranslator(SharedTranslator):
         passing = passing.lstrip('"').rstrip('"').replace('\\"', '"')
 
         if type(ctx.parentCtx) == easmParser.ExpressionContext:  # type: ignore
+            for _ in range(1 + passing.count("\n")):
+                self.opcodesConnection.append(ctx.start.line) # type: ignore
             self.expressions.append(passing)
         else:
+            for _ in range(1 + passing.count("\n")):
+                self.expressionConnection.append(ctx.start.line) # type: ignore
             self.result.append(passing)
-        for _ in range(1 + passing.count("\n")):
-            self.expressionConnection.append(ctx.start.line) # type: ignore
 
     def exitNewStat(self, ctx: easmParser.NewStatContext) -> None:
         name = str(self.terminals.pop())
@@ -314,7 +324,7 @@ class easm2cTranslator(SharedTranslator):
         self.expressions.append(f"if ((void *){name} != NULL)")
         self.expressions.append(f"    free((void *){name});")
         for _ in range(2):
-            self.expressionConnection.append(ctx.start.line) # type: ignore
+            self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitDot(self, ctx: easmParser.DotContext) -> None:
         param = str(self.terminals.pop())
@@ -326,7 +336,7 @@ class easm2cTranslator(SharedTranslator):
 
         self.expressions.append(f"if ((({kind} *){name}) != NULL)")
         self.terminals.append(f"(({kind}*){name})->{param}")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitGetMem(self, ctx: easmParser.GetMemContext) -> None:
         self.terminals.pop()  # ']' symbol
@@ -352,7 +362,7 @@ class easm2cTranslator(SharedTranslator):
         left = str(self.terminals.pop())
 
         self.expressions.append(f"{right} = {left};")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitJump(self, ctx: easmParser.JumpContext) -> None:
         label = str(self.terminals.pop())
@@ -367,7 +377,7 @@ class easm2cTranslator(SharedTranslator):
         else:
             self.expressions.append(f"goto {label};")
         
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
         self.terminals.pop()  # 'jump' word
 
     def exitCondition(self, ctx: easmParser.ConditionContext) -> None:
@@ -450,7 +460,7 @@ class easm2cTranslator(SharedTranslator):
         if double:
             self.expressions.append(f"dbres = {result};")
             self.terminals.append("*((int64_t*)&dbres)")
-            self.expressionConnection.append(ctx.start.line) # type: ignore
+            self.opcodesConnection.append(ctx.start.line) # type: ignore
         else:
             self.terminals.append(result)
 
@@ -459,14 +469,14 @@ class easm2cTranslator(SharedTranslator):
         self.terminals.pop()  # 'inc' word
 
         self.expressions.append(f"{value}++;")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitDec(self, ctx: easmParser.DecContext) -> None:
         value = str(self.terminals.pop())
         self.terminals.pop()  # 'dec' word
 
         self.expressions.append(f"{value}--;")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitNot(self, ctx: easmParser.NotContext) -> None:
         value = str(self.terminals.pop())
@@ -501,7 +511,7 @@ class easm2cTranslator(SharedTranslator):
         self.terminals.pop()  # 'push' word
 
         self.expressions.append(f"easm_spush({value});")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitPull(self, ctx: easmParser.PullContext) -> None:
         # or 'pull' word (depends on context)
@@ -512,7 +522,7 @@ class easm2cTranslator(SharedTranslator):
             self.expressions.append(f"{value} = easm_spull();")
         else:
             self.expressions.append("easm_spull();")
-        self.expressionConnection.append(ctx.start.line) # type: ignore
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitCast(self, ctx: easmParser.CastContext) -> None:
         kind = str(self.terminals.pop())
@@ -585,24 +595,21 @@ class easm2cBuilder(SharedBuilder):
             cmakeProcess.kill()
             outs, _ = cmakeProcess.communicate()
 
-        from re import findall
+        from re import findall, search
 
-        print(findall(r"EASMTranslated\.c\(\d+,\d+\): error \w+", outs.decode()))
+        compileTimeErrors: list[str] = findall(r"EASMTranslated\.c\(\d+,\d+\): error \w+", outs.decode())
 
-        return
-
-        if outs != b'':
+        for err in compileTimeErrors:
             self.exceptions.append(
                 SharedException(
                     "CTE0",
                     SharedExceptionLevel.Error,
-                    0,
-                    0,
-                    "",
-                    f"{outs.decode()}"
+                    int(search(r"\((\d+),(\d+)\)", err).group(1)), # type: ignore
+                    int(search(r"\((\d+),(\d+)\)", err).group(2)), # type: ignore
+                    "Translated result",
+                    f"{err}"
                 )
             )
-            return
 
 
 class easm2cRunner(SharedRunner):
@@ -614,6 +621,7 @@ class easm2cRunner(SharedRunner):
 
 easm2c = SharedHandler(
     "easm2c",
+    "C/C++",
     easm2cTranslator, 
     easm2cBuilder,
     easm2cRunner,

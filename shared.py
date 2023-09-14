@@ -33,7 +33,7 @@ class SharedId:
         return uid
 
     def getId(self, uid: str) -> str:
-        return self.decouplingUid.get(uid, '')
+        return self.decouplingUid.get(uid, uid)
 
 
 class SharedExceptionLevel(Enum):
@@ -53,7 +53,13 @@ class SharedException:
         self.msg: str = msg
 
     def __str__(self) -> str:
-        return f"({self.code}) {self.level.name} at ({self.line}:{self.column}) in '{self.file}':\n   {self.msg}\n"
+        color = ""
+        match self.level:
+            case SharedExceptionLevel.Error:
+                pass
+            case _:
+                pass
+        return f"({color}{self.code}) {self.level.name} at ({self.line}:{self.column}) in '{self.file}':\n   {self.msg}\n"
 
 
 class SharedBuilder:
@@ -76,8 +82,11 @@ class SharedTranslator(easmListener):
         self.filename: str = filename
         self.imports: set[str] = set()
         self.functions: set[str] = set()
+        self.neededFunctions: set[str] = set()
         self.structures: set[str] = set()
+        self.neededStructures: set[str] = set()
         self.expressionConnection: list[int] = list()
+        self.opcodesConnection: list[int] = list()
         self.exceptions: list[SharedException] = list()
         self.result: list[str] = list()
 
@@ -96,10 +105,11 @@ class SharedRunner:
 
 class SharedHandler:
 
-    def __init__(self, name: str, translator: type[SharedTranslator], builder: type[SharedBuilder], runner: type[SharedRunner], runtime: str, version: tuple[int, int, int]) -> None:
+    def __init__(self, name: str, lang: str, translator: type[SharedTranslator], builder: type[SharedBuilder], runner: type[SharedRunner], runtime: str, version: tuple[int, int, int]) -> None:
         self.name: str = name
         self.translator: type[SharedTranslator] = translator
         self.builder: type[SharedBuilder] = builder
+        self.lang: str = lang
         self.runner: type[SharedRunner] = runner
         self.runtime: str = runtime
         self.version: tuple[int, int, int] = version
