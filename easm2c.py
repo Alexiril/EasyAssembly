@@ -6,9 +6,8 @@ from antlr4.Parser import ParserRuleContext  # type: ignore
 
 from easmLexer import easmLexer
 from easmParser import ErrorNode, TerminalNode, easmParser
-from shared import (SharedBuilder, SharedException,
-                    SharedExceptionLevel, SharedId,
-                    SharedRules, SharedHandler, SharedRunner,
+from shared import (SharedBuilder, SharedException, SharedExceptionLevel,
+                    SharedHandler, SharedId, SharedRules, SharedRunner,
                     SharedTranslator)
 
 easm2cVersion: tuple[int, int, int] = (0, 2, 0)
@@ -75,6 +74,7 @@ class easm2cTranslator(SharedTranslator):
         self.labels: dict[str, set[str]] = dict()
         self.labelsInFunction: set[str] = set()
         self.neededLabels: set[str] = set()
+        self.arrayNumber: int = 0
         
         
     def handleException(self, code: str, level: SharedExceptionLevel, ctx: TerminalNode | ParserRuleContext, msg: str) -> None:
@@ -180,6 +180,7 @@ class easm2cTranslator(SharedTranslator):
         self.labelsInFunction.clear()
         self.neededLabels.clear()
         self.initializedLocals.clear()
+        self.arrayNumber = 0
 
         self.result.append(
             f"// {self.ids.getId(functionName)}")
@@ -366,10 +367,11 @@ class easm2cTranslator(SharedTranslator):
 
     def exitJump(self, ctx: easmParser.JumpContext) -> None:
         label = str(self.terminals.pop())
+        self.terminals.pop() # 'to' word
 
         self.neededLabels.add(label)
 
-        if ctx.getChildCount() > 2:
+        if ctx.getChildCount() > 3:
             cond = str(self.terminals.pop())
             self.terminals.pop()  # 'if' word
 
@@ -484,6 +486,17 @@ class easm2cTranslator(SharedTranslator):
 
         self.terminals.append(f"~{value}")
 
+    def exitArray(self, ctx: easmParser.ArrayContext) -> None:
+        size = str(self.terminals.pop())
+        self.terminals.pop() # 'array' word
+
+        self.expressions.append(f"int64_t arr{self.arrayNumber}[{size}] = {{ 0 }};")
+        self.terminals.append(f"&arr{self.arrayNumber}")
+
+        self.arrayNumber += 1
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
+        
+
     def exitPtr(self, ctx: easmParser.PtrContext) -> None:
         value = str(self.terminals.pop())
         self.terminals.pop()  # 'ptr' word
@@ -562,7 +575,7 @@ class easm2cBuilder(SharedBuilder):
             )
             return
 
-        from subprocess import Popen, PIPE, TimeoutExpired
+        from subprocess import PIPE, Popen, TimeoutExpired
 
         cmakeProcess = Popen([cmakeAddr, "../"],
                                 cwd=join(self.folder, "native_build"), stdout=PIPE, stderr=PIPE)
@@ -617,7 +630,13 @@ class easm2cRunner(SharedRunner):
     def run(self) -> None:
 
         from subprocess import Popen
-        Popen([join(self.outFolder, "native_build", "Debug", "easmProgram.exe")]).wait()
+        from platform import system
+
+        executableName = "easmProgram"
+        if "Windows" in system():
+            executableName = f"Debug\\{executableName}.exe"
+
+        Popen([join(self.outFolder, "native_build", executableName)]).wait()
 
 easm2c = SharedHandler(
     "easm2c",

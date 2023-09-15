@@ -170,6 +170,15 @@ class easmListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by easmParser#array.
+    def enterArray(self, ctx:easmParser.ArrayContext):
+        pass
+
+    # Exit a parse tree produced by easmParser#array.
+    def exitArray(self, ctx:easmParser.ArrayContext):
+        pass
+
+
     # Enter a parse tree produced by easmParser#ptr.
     def enterPtr(self, ctx:easmParser.PtrContext):
         pass
@@ -194,15 +203,6 @@ class easmListener(ParseTreeListener):
 
     # Exit a parse tree produced by easmParser#stacksize.
     def exitStacksize(self, ctx:easmParser.StacksizeContext):
-        pass
-
-
-    # Enter a parse tree produced by easmParser#getMem.
-    def enterGetMem(self, ctx:easmParser.GetMemContext):
-        pass
-
-    # Exit a parse tree produced by easmParser#getMem.
-    def exitGetMem(self, ctx:easmParser.GetMemContext):
         pass
 
 
@@ -248,6 +248,15 @@ class easmListener(ParseTreeListener):
 
     # Exit a parse tree produced by easmParser#dot.
     def exitDot(self, ctx:easmParser.DotContext):
+        pass
+
+
+    # Enter a parse tree produced by easmParser#getMem.
+    def enterGetMem(self, ctx:easmParser.GetMemContext):
+        pass
+
+    # Exit a parse tree produced by easmParser#getMem.
+    def exitGetMem(self, ctx:easmParser.GetMemContext):
         pass
 
 

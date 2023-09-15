@@ -72,15 +72,15 @@ func flow_control_test
     7 -> a
     8 -> b
 
-    jump if a > b more
-    jump if a < b less
+    jump if a > b to more
+    jump if a < b to less
 
     call printf("a = b\n")
-    jump loop
+    jump to loop
     
     more:
     call printf("a > b\n")
-    jump loop
+    jump to loop
     
     less:
     call printf("a < b\n")
@@ -92,7 +92,7 @@ func flow_control_test
     call printf("counter value is %lld\n", counter)
     dec counter
 
-    jump if counter > 0 iteration
+    jump if counter > 0 to iteration
 
 // [] => []
 func pass_test
@@ -146,3 +146,17 @@ func main
     pull top
     push top
     call printf("by the way, stack size is %lld, top is %lld\n", size, top)
+
+    array 1024 -> arr
+    0 -> counter
+
+    loopHead:
+
+    counter -> arr[counter]
+    inc counter
+
+    jump if counter < 1024 to loopHead
+
+    dec counter
+
+    call printf("yeah, array is working, last value is %lld", arr[counter])

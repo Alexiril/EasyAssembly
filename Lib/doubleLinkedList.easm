@@ -17,7 +17,7 @@ func DLListAppend
 	head -> DLListNode newNode.prev_ptr
 	0 -> DLListNode newNode.next_ptr
 
-	jump if head = 0 end
+	jump if head = 0 to end
 
 	newNode -> DLListNode head.next_ptr
 
@@ -32,12 +32,12 @@ func DLListPull
 
 	pull head
 
-	jump if head = 0 end
+	jump if head = 0 to end
 
 	DLListNode head.prev_ptr -> previous
 	DLListNode head.data -> data
 
-	jump if previous = 0 end
+	jump if previous = 0 to end
 
 	0 -> DLListNode previous.next_ptr
 
@@ -55,18 +55,18 @@ func DLListSize
 
 	pull head
 	
-	jump if head = 0 end
+	jump if head = 0 to end
 
 	1 -> size
 
 	loopHead:
 	
 	DLListNode head.prev_ptr -> head
-	jump if head = 0 end
+	jump if head = 0 to end
 
 	inc size
 
-	jump if DLListNode head.prev_ptr != 0 loopHead
+	jump if DLListNode head.prev_ptr != 0 to loopHead
 
 	end:
 	push size
@@ -79,7 +79,7 @@ func DLListRemoveAt
 	pull head
 	pull index
 
-	jump if index != 0 indexNotZero
+	jump if index != 0 to indexNotZero
 
 	push head
 
@@ -88,7 +88,7 @@ func DLListRemoveAt
 	pull head
 	pull data
 
-	jump end
+	jump to end
 	indexNotZero:
 
 	head -> pointer
@@ -96,25 +96,25 @@ func DLListRemoveAt
 
 	loopHead:
 
-	jump if pointer = 0 end
+	jump if pointer = 0 to end
 
 	DLListNode pointer.prev_ptr -> pointer
 
 	inc counter
 
-	jump if counter < index loopHead
+	jump if counter < index to loopHead
 
 	DLListNode pointer.data -> data
 	DLListNode pointer.prev_ptr -> previous
 	DLListNode pointer.next_ptr -> next
 
-	jump if previous = 0 newNode
+	jump if previous = 0 to newNode
 
 	next -> DLListNode previous.next_ptr
 
 	newNode:
 
-	jump if next = 0 end
+	jump if next = 0 to end
 
 	previous -> DLListNode next.prev_ptr
 
@@ -132,17 +132,17 @@ func DLListGetAt
 	head -> value
 	0 -> counter
 
-	jump if index = 0 end
+	jump if index = 0 to end
 
 	loopHead:
 
-	jump if value = 0 end
+	jump if value = 0 to end
 
 	DLListNode value.prev_ptr -> value
 
 	inc counter
 
-	jump if counter < index loopHead
+	jump if counter < index to loopHead
 
 	end:
 
@@ -162,7 +162,7 @@ func DLListInsert
 
 	pull node
 
-	jump if node = 0 end
+	jump if node = 0 to end
 
 	new DLListNode -> newNode
 
@@ -173,7 +173,7 @@ func DLListInsert
 	newNode -> DLListNode node.next_ptr
 	DLListNode newNode.next_ptr -> next
 
-	jump if next = 0 end
+	jump if next = 0 to end
 
 	newNode -> DLListNode next.prev_ptr
 
@@ -199,6 +199,6 @@ func DLListClear
 	pull _
 
 	dec counter
-	jump if counter > 0 loopHead
+	jump if counter > 0 to loopHead
 
 	push 0

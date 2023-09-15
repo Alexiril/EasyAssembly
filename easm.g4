@@ -21,7 +21,7 @@ expression:
 
 pass: 'pass' SConst;
 delete: 'delete' Id;
-jump: 'jump' ('if' condition)? Id;
+jump: 'jump' ('if' condition)? 'to' Id;
 label: Id ':';
 move: rvalue '->' lvalue;
 push: 'push' cvalue;
@@ -35,6 +35,7 @@ rvalue:
 	| stacksize
 	| call
 	| getMem
+	| array
 	| ptr
 	| not
 	| binaryOperator
@@ -42,10 +43,11 @@ rvalue:
 
 newStat: 'new' 'local'? Id;
 call: 'call' Id ('(' ( cvalue (',' cvalue)*)? ')')?;
+array: 'array' IConst;
 ptr: 'ptr' (lvalue | SConst);
 not: 'not' (lvalue | IConst | FConst | CConst);
 stacksize: 'ssize';
-getMem: (Id | valueType)? (lvalue | IConst) '[' (lvalue | IConst)? ']';
+
 binaryOperator: (
 		'and'
 		| 'or'
@@ -64,9 +66,10 @@ binaryOperator: (
 
 cvalue: lvalue | IConst | FConst | CConst | SConst;
 
-lvalue: Id | dot | cast;
+lvalue: Id | dot | cast | getMem;
 cast: Id 'as' (Id | valueType);
 dot: Id Id '.' Id;
+getMem: (Id | valueType)? (Id | dot | cast | IConst) '[' (Id | dot | cast | IConst)? ']';
 
 dataTypeDeclaration: (Id | valueType) Id;
 

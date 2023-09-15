@@ -41,7 +41,7 @@ func main
 
 	inc counter
 
-	jump if counter < 5 loopHead
+	jump if counter < 5 to loopHead
 
 	push head
 	call DLListSize
@@ -82,7 +82,7 @@ func main
 
 	inc counter
 
-	jump if counter < size loopHead2
+	jump if counter < size to loopHead2
 
 	push head
 	call DLListClear
