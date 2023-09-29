@@ -4,7 +4,7 @@ program: Pony (importStat | function | structure | pass)* EOF;
 
 structure: 'struct' Id dataTypeDeclaration+;
 
-function: 'func' Id expression*;
+function: ('['(Id (',' Id)*)?']')? 'func' Id expression*;
 importStat: 'import' 'native'? SConst;
 
 expression:
@@ -17,7 +17,8 @@ expression:
 	| push
 	| pull	
 	| inc
-	| dec;
+	| dec
+	| ret;
 
 pass: 'pass' SConst;
 delete: 'delete' Id;
@@ -29,6 +30,7 @@ pull: 'pull' lvalue?;
 condition: cvalue ( '=' | '!=' | '>' | '<' | '>=' | '<=') cvalue;
 inc: 'inc' (lvalue | IConst | FConst | CConst);
 dec: 'dec' (lvalue | IConst | FConst | CConst);
+ret: 'return' cvalue (',' cvalue)*;
 
 rvalue:
 	newStat
@@ -42,7 +44,7 @@ rvalue:
 	| cvalue;
 
 newStat: 'new' 'local'? Id;
-call: 'call' Id ('(' ( cvalue (',' cvalue)*)? ')')?;
+call: 'call' 'native'? Id ('(' ( cvalue (',' cvalue)*)? ')')? ('['lvalue (',' lvalue)*']')?;
 array: 'array' IConst;
 ptr: 'ptr' (lvalue | SConst);
 not: 'not' (lvalue | IConst | FConst | CConst);
@@ -76,7 +78,7 @@ dataTypeDeclaration: (Id | valueType) Id;
 valueType: 'int' | 'float' | 'string';
 
 Pony: [pP][oO][nN][yY][!.,:]?;
-Id: [a-zA-Z_][a-zA-Z_0-9]*;
+Id: '*'?[a-zA-Z_][a-zA-Z_0-9]*;
 
 IConst:
 	[+-]? (
@@ -84,7 +86,8 @@ IConst:
 		| '0' [oO] [0-7]+
 		| '0' [xX] [0-9a-fA-F]+
 		| '0' [bB] [0-1]+
-	);
+	)
+	| 'null';
 
 FConst: [+-]? (Fract Exp? | Digits Exp);
 fragment Fract: Digits? '.' Digits | Digits '.';

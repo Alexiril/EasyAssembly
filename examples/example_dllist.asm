@@ -11,85 +11,47 @@ func main
 	0 -> DLListNode head.next_ptr
 	0 -> DLListNode head.prev_ptr
 
-	push 7
-	push head
+	call DLListAppend(7, head) [head]
 
-	call DLListAppend
+	call native printf("value of head is: %lld\n", DLListNode head.data)
 
-	pull head
+	call DLListPull(head) [head, deletedData]
 
-	call printf("value of head is: %lld\n", DLListNode head.data)
-
-	push head
-
-	call DLListPull
-	
-	pull head
-	pull deletedData
-
-	call printf("value of head is: %lld and old data is: %lld\n", DLListNode head.data, deletedData)
+	call native printf("value of head is: %lld and old data is: %lld\n", DLListNode head.data, deletedData)
 
 	1 -> counter
 
 	loopHead:
-	push counter
-	push head
-
-	call DLListAppend
-
-	pull head
+	call DLListAppend(counter, head) [head]
 
 	inc counter
 
 	jump if counter < 5 to loopHead
 
-	push head
-	call DLListSize
-	pull size
-	call printf("okay, now the head is: %lld, and the size is: %lld\n", DLListNode head.data, size)
+	call DLListSize(head) [size]
 
-	push 1
-	push head
-	call DLListRemoveAt
-	pull head
-	pull deletedData
-	push head
-	call DLListSize
-	pull size
+	call native printf("okay, now the head is: %lld, and the size is: %lld\n", DLListNode head.data, size)
+
+	call DLListRemoveAt(1, head) [head, deletedData]
+	call DLListSize(head) [size]
 	
-	call printf("okay, now the head is: %lld, and the size is: %lld, and deleted was: %lld\n", DLListNode head.data, size, deletedData)
+	call native printf("okay, now the head is: %lld, and the size is: %lld, and deleted was: %lld\n", DLListNode head.data, size, deletedData)
 
-	push 999
-	push 2
-	push head
-
-	call DLListInsert
-
-	push head
-	call DLListSize
-	pull size
+	call DLListInsert(999, 2, head) [head]
+	call DLListSize(head) [size]
 
 	0 -> counter
 
 	loopHead2:
+	call DLListGetAt(counter, head) [node]
 
-	push counter
-	push head
-	call DLListGetAt
-	pull node
-
-	call printf("data with index %lld is %lld\n", counter, DLListNode node.data)
+	call native printf("data with index %lld is %lld\n", counter, DLListNode node.data)
 
 	inc counter
 
 	jump if counter < size to loopHead2
 
-	push head
-	call DLListClear
-	pull head
+	call DLListClear(head) [head]
+	call DLListSize(head) [size]
 
-	push head
-	call DLListSize
-	pull size
-
-	call printf("list size is %lld\n", size)
+	call native printf("list size (cleared) is %lld\n", size)

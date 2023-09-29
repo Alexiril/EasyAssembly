@@ -143,6 +143,15 @@ class easmListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by easmParser#ret.
+    def enterRet(self, ctx:easmParser.RetContext):
+        pass
+
+    # Exit a parse tree produced by easmParser#ret.
+    def exitRet(self, ctx:easmParser.RetContext):
+        pass
+
+
     # Enter a parse tree produced by easmParser#rvalue.
     def enterRvalue(self, ctx:easmParser.RvalueContext):
         pass

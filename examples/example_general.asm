@@ -7,14 +7,11 @@ Pony!
 
 import native "stdio.h"
 
-// [index, value] => [memory_section]
-func mem_test
-    pull value
-    pull index
-
+[value, index] 
+func mem_test// => [memory_section]
     value[index] -> memory_section
 
-    push memory_section
+    return memory_section
 
 struct Point
     int x
@@ -24,11 +21,8 @@ struct Line
     Point p1
     Point p2
 
-// [y, x] => [line]
-func struct_test
-    pull x
-    pull y
-
+[x, y]
+func struct_test // => [line]
     new local Point -> p0
     x -> Point p0.x
     y -> Point p0.y
@@ -45,13 +39,10 @@ func struct_test
     Point p1[] -> Line line.p1
     Point p2[] -> Line line.p2
 
-    push line
+    return line
 
-// [two, one] => [dsum]
-func math_test
-    pull one
-    pull two
-
+[one, two]
+func math_test // => [dsum]
     // Standard signed 64-bit integer
     add int one, two -> stdsum
     sub int one, two -> stdsub
@@ -65,65 +56,52 @@ func math_test
     mul float one, two -> dmul
     div float one, two -> ddiv
 
-    push dsum
+    return dsum
 
-// [b, a] => []
-func flow_control_test
+[counter]
+func flow_control_test // => []
     7 -> a
     8 -> b
 
     jump if a > b to more
     jump if a < b to less
 
-    call printf("a = b\n")
-    jump to loop
+    call native printf("a = b\n")
+    jump to iteration
     
     more:
-    call printf("a > b\n")
-    jump to loop
+    call native printf("a > b\n")
+    jump to iteration
     
     less:
-    call printf("a < b\n")
-
-    loop:
-    pull counter
+    call native printf("a < b\n")
 
     iteration:
-    call printf("counter value is %lld\n", counter)
+    call native printf("counter value is %lld\n", counter)
     dec counter
 
     jump if counter > 0 to iteration
 
-// [] => []
-func pass_test
+func pass_test // => []
     pass "printf(\"pass is working!\n\");"
 
 func main
     90 -> deg90
 
-    call printf("here first call goes")
+    call native printf("here first call goes\n")
 
     call pass_test
 
-    push 10
-    call flow_control_test
-
-    push 3
+    call flow_control_test(10)
 
     ptr "something about them was weird" -> str
-    push str
-    call mem_test
+    call mem_test(str, 3) [mem_test_result]
 
-    pull mem_test_result
-    call printf("value is %lld\n", mem_test_result)
+    call native printf("value is %lld\n", mem_test_result)
 
-    call printf("yeah, str is %s\n", str)
+    call native printf("yeah, str is %s\n", str)
 
-    push 17
-    push 20
-    call struct_test
-
-    pull struct_result
+    call struct_test(20, 17) [struct_result]
 
     struct_result -> line
     
@@ -133,19 +111,18 @@ func main
 
     delete struct_result
 
-    call printf("we passed deleting\n")
+    call native printf("we passed deleting\n")
 
-    push 0.5
-    push 0.1
-    call math_test
+    call math_test(0.1, 0.5) [math_result]
 
-    pull math_result
-    call printf("we passed math. sum is %f\n", math_result as float)
+    call native printf("we passed math. sum is %f\n", math_result as float)
+
+    push 10
 
     ssize -> size
     pull top
     push top
-    call printf("by the way, stack size is %lld, top is %lld\n", size, top)
+    call native printf("by the way, stack size is %lld, top is %lld\n", size, top)
 
     array 1024 -> arr
     0 -> counter
@@ -159,4 +136,4 @@ func main
 
     dec counter
 
-    call printf("yeah, array is working, last value is %lld", arr[counter])
+    call native printf("yeah, array is working, last value is %lld", arr[counter])

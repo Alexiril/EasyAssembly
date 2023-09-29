@@ -85,6 +85,7 @@ class SharedTranslator(easmListener):
         self.neededFunctions: set[str] = set()
         self.structures: set[str] = set()
         self.neededStructures: set[str] = set()
+        self.externalValues: set[str] = set()
         self.expressionConnection: list[int] = list()
         self.opcodesConnection: list[int] = list()
         self.exceptions: list[SharedException] = list()

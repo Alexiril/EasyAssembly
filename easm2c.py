@@ -17,13 +17,16 @@ easm2cRuntime = """
 #define __EASM_RUNTIME
 #include <stdint.h>
 #include <malloc.h>
+#define null 0
 typedef struct stackNode { int64_t data; struct stackNode* next; } stackNode;
 stackNode* stackTop = NULL;
 int64_t __easm_ssize = 0;
-uint64_t easm_ssize() {
+uint64_t easm_ssize()
+{
     return __easm_ssize;
 }
-int64_t easm_spull() {
+int64_t easm_spull()
+{
     if (stackTop == NULL)
         return 0;
     stackNode* temp = stackTop;
@@ -33,7 +36,8 @@ int64_t easm_spull() {
     __easm_ssize--;
     return data;
 }
-void easm_spush(int64_t num) {
+void easm_spush(int64_t num)
+{
     stackNode* nptr = (stackNode*)malloc(sizeof(stackNode));
     if (nptr == NULL)
         return;
@@ -112,8 +116,13 @@ class easm2cTranslator(SharedTranslator):
             packed: bytes = pack('d', float(node.getText()))  # type: ignore
             node = hex(unpack('Q', packed)[0]) # type: ignore
         elif node.getSymbol().type == easmLexer.Id:  # type: ignore
+            decouple = False
+            if node.getSymbol().text[0] == '*': # type: ignore
+                decouple = True
+                node.getSymbol().text = node.getSymbol().text[1:] # type: ignore
+                self.externalValues = node.getSymbol().text # type: ignore
             node.getSymbol().text = self.ids.decoupleId(node.getText())  # type: ignore
-            if not self.rules.decoupleIDs:
+            if not self.rules.decoupleIDs or decouple:
                 node.getSymbol().text = self.ids.getId(node.getText())  # type: ignore
         self.terminals.append(node)
 
@@ -135,7 +144,17 @@ class easm2cTranslator(SharedTranslator):
 
     def exitFunction(self, ctx: easmParser.FunctionContext) -> None:
         functionName: str = str(self.terminals.pop())
-        self.terminals.pop()  # 'func' word
+        self.terminals.pop() # 'func' word
+        
+        params = list()
+        if str(ctx.children[0]) == "[": # type: ignore 
+            self.terminals.pop() # ']' symbol
+            while True:
+                next = str(self.terminals.pop())
+                if next == "[":
+                    break
+                if next != ',':
+                    params.append(next)
 
         if functionName in self.functions:
             self.handleException("FSN0", SharedExceptionLevel.Error, ctx,
@@ -143,17 +162,25 @@ class easm2cTranslator(SharedTranslator):
 
         self.functions.add(functionName)
 
+        for param in params:
+            self.expressions.insert(0, f"{param} = easm_spull();")
+            self.opcodesConnection.insert(0, ctx.start.line) # type: ignore
+
+        for param in params:
+            self.initializedLocals.add(param)
+
         for initLocal in self.initializedLocals:
             self.expressions.insert(
                 0, f"int64_t {initLocal} = 0; // {self.ids.getId(initLocal)}")
-        
-        for _ in range(len(self.initializedLocals)):
             self.opcodesConnection.insert(0, ctx.start.line) # type: ignore
 
         if self.doubleResult:
             self.expressions.insert(0, "double dbres = 0;")
             self.opcodesConnection.append(ctx.start.line) # type: ignore
         self.doubleResult = False
+
+        self.expressions.append("functionEnd_EASM:")
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
         for localObject in self.newLocalObjects:
             self.expressions.append(f"if ((void *){localObject} != NULL)")
@@ -262,33 +289,64 @@ class easm2cTranslator(SharedTranslator):
     def exitCall(self, ctx: easmParser.CallContext) -> None:
         cstring = ""
         lastTerminal = str(self.terminals.pop())
-        invoke = False
+        returned: list[str] = list()
+        params: list[str] = list()
+        if lastTerminal == "]":
+            while True:
+                lastTerminal = str(self.terminals.pop())
+                if lastTerminal == "[":
+                    break
+                if lastTerminal != ",":
+                    returned.append(lastTerminal)
+            lastTerminal = str(self.terminals.pop())
         if lastTerminal == ")":
-            invoke = True
-            params_count = ctx.getChildCount() - 4
-            params: list[str] = list()
-            for i in range(params_count):
-                value = str(self.terminals.pop())
-                if i % 2 == 0:
-                    params.append(value)
-            self.terminals.pop()  # '(' symbol
-            funcToInvoke = str(self.terminals.pop())
-            cstring = f"{self.ids.getId(funcToInvoke)}({','.join(params[::-1])})"
+            while True:
+                lastTerminal = str(self.terminals.pop())
+                if lastTerminal == "(":
+                    break
+                if lastTerminal != ",":
+                    params.append(lastTerminal)
+            lastTerminal = str(self.terminals.pop())
+
+        isNative = str(self.terminals.pop()) # or 'call' word
+        if isNative == "native":
+            lastTerminal = self.ids.getId(lastTerminal)
+            self.terminals.pop() # 'call' word
+            cstring = f"{lastTerminal}({','.join(params[::-1])})"
         else:
-            cstring = f"{lastTerminal} ()"
             self.neededFunctions.add(lastTerminal)
-        
-        self.terminals.pop()  # 'call' word    
-        
+            for value in params:
+                self.expressions.append(f"easm_spush({value});")
+                self.opcodesConnection.append(ctx.start.line) # type: ignore
+            cstring = f"{lastTerminal}()"
+
         if type(ctx.parentCtx) == easmParser.RvalueContext:  # type: ignore
-                if not invoke:
-                    self.handleException("LCV0", SharedExceptionLevel.Error, ctx,
-                                 f"Local call cannot return a value: call {self.ids.getId(lastTerminal)}")
-                self.terminals.append(cstring)
+            if isNative != "native":
+                self.handleException("LCV0", SharedExceptionLevel.Error, ctx,
+                    f"Non native call cannot be a readable value: call {self.ids.getId(lastTerminal)}")
+            self.terminals.append(cstring)
         else:
             self.expressions.append(cstring + ";")
             self.opcodesConnection.append(ctx.start.line) # type: ignore
+            
+        for value in returned[::-1]:
+            self.expressions.append(f"{value} = easm_spull();")
+            self.opcodesConnection.append(ctx.start.line) # type: ignore
         
+        
+    def exitRet(self, ctx: easmParser.RetContext) -> None:
+        returned: list[str] = list()
+        for i in range(ctx.getChildCount() - 1):
+            value = str(self.terminals.pop())
+            if i % 2 == 0:
+                returned.append(value)
+        self.terminals.pop() # 'return' word
+        for value in returned:
+            self.expressions.append(f"easm_spush({value});")
+            self.opcodesConnection.append(ctx.start.line) # type: ignore
+        self.expressions.append("goto functionEnd_EASM;")
+        self.opcodesConnection.append(ctx.start.line) # type: ignore
+
     def exitPass(self, ctx: easmParser.PassContext) -> None:
         passing: str = str(self.terminals.pop())
         self.terminals.pop()  # 'pass' word
@@ -394,7 +452,7 @@ class easm2cTranslator(SharedTranslator):
 
     def exitLvalue(self, ctx: easmParser.LvalueContext) -> None:
         value = self.terminals.pop()
-        if type(value) == str or str(value) in self.initializedLocals:
+        if type(value) == str or str(value) in self.initializedLocals or str(value) in self.externalValues:
             self.terminals.append(value)
         else:
             self.terminals.append(value)
@@ -515,7 +573,7 @@ class easm2cTranslator(SharedTranslator):
             self.terminals.append(kind)
 
     def exitStacksize(self, ctx: easmParser.StacksizeContext) -> None:
-        self.terminals.pop()  # 'ssize' word ('stack size' maybe)
+        self.terminals.pop()  # 'ssize' word
 
         self.terminals.append("easm_ssize()")
 

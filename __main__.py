@@ -235,11 +235,18 @@ def handleBuilderErr(error: SharedException) -> str:
     global handler
     actualCode: tuple[str, int] = codeConnection[error.line]
 
-    errorCode: str | Any = search(r'error (\w+)', error.msg).group(1) # type: ignore
     line: str = ""
     with open(actualCode[0]) as file:
         line = file.readlines()[actualCode[1]-1].rstrip()
     lang: str = "".join(['%' + hex(ord(x))[2:] for x in handler.lang])
+
+    searcherr = search(r'error (\w+)', error.msg)
+
+    if searcherr == None:
+        return f"Compile {error.level.name} at ({actualCode[1]}:1) in '{actualCode[0]}':\n   {error.msg}\n"
+
+    errorCode: str | Any = searcherr.group(1) # type: ignore
+    
     bytesErrorCode: str = "".join(['%' + hex(ord(x))[2:] for x in errorCode])
     newMsg = f"{errorCode} error at: {line}\n   https://www.google.com/search?q={bytesErrorCode}+{lang}\n"
     return f"({error.code}) Compile {error.level.name} at ({actualCode[1]}:1) in '{actualCode[0]}':\n   {newMsg}\n"
