@@ -1,0 +1,155 @@
+Pony!
+
+import native "stdio.h"
+
+func RemoveFile(filename) [error]
+    call native remove(filename) -> error
+    push error
+
+func RenameFile(oldName, newName) [error]
+    call native rename(oldName, newName) -> error
+    push error
+
+func OpenTempFile [pointer]
+    call native tmpfile() -> pointer
+    push pointer
+
+func GenerateTempFilename(resultStringPointer) [pointer]
+    call native tmpnam(resultStringPointer) -> pointer
+    push pointer
+
+func GetMaxUniqueTempFilenames [max]
+    push *TMP_MAX
+
+func GetTempFilenameHoldingSize [size]
+    push *L_tmpnam
+
+func CloseFile(fileStream) [error]
+    call native fclose(fileStream) -> error
+    push error
+
+func FlushFile(fileStream) [error]
+    call native fflush(fileStream) -> error
+    push error
+
+func OpenFile(filename, mode) [file]
+    call native fopen(filename, mode) -> file
+    push file
+
+func ReopenFile(filename, mode, file) [file]
+    call native freopen(filename, mode, file) -> file
+    push file
+
+func SetStreamBuffer(fileStream, bufferPointer, mode, size) [error]
+    call native setvbuf(fileStream, bufferPointer, mode, size) -> error
+    push error
+
+func GetFullBufferingMode [mode]
+    push *_IOFBF
+
+func GetLineBufferingMode [mode]
+    push *_IOLBF
+
+func GetNoBufferingMode [mode]
+    push *_IONBF
+
+func GetCharacter(fileStream) [character]
+    call native getc(fileStream) -> character
+    push character
+
+func InputCharacter [char]
+    call native getchar() -> character
+    push character
+
+func UngetCharacter(character, fileStream) [written]
+    call native ungetc(character, fileStream) -> written
+    push written
+
+func GetString(stringPointer, characterAmount, fileStream) [stringPointer]
+    call native fgets(stringPointer, characterAmount, fileStream) -> stringPointer
+    push stringPointer
+
+func InputString(stringPointer, characterAmount) [stringPointer]
+    call native gets_s(stringPointer, characterAmount) -> stringPointer
+    push stringPointer
+
+func PutCharacter(character, fileStream) [written]
+    call native fputc(character, fileStream) -> written
+    push written
+
+func PrintCharacter(character) [written]
+    call native putchar(character) -> written
+    push written
+
+func PutString(str, fileStream) [result]
+    call native fputs(str, fileStream) -> result
+    push result
+
+func PrintString(str) [result]
+    call native puts(str) -> result
+    push result
+
+func ReadFile(bufferPointer, elementSize, elementsAmount, fileStream) [readElements]
+    call native fread(bufferPointer, elementSize, elementsAmount, fileStream) -> readElements
+    push readElements
+
+func WriteFile(bufferPointer, elementSize, elementsAmount, fileStream) [writtenElements]
+    call native fwrite(bufferPointer, elementSize, elementsAmount, fileStream) -> writtenElements
+    push writtenElements
+
+func GetFilePositionIter(fileStream, positionPointer) [error]
+    call native fgetpos(fileStream, positionPointer) -> error
+    push error
+
+func SetFilePositionIter(fileStream, positionPointer) [error]
+    call native fsetpos(fileStream, positionPointer) -> error
+    push error
+
+func GetFilePosition(fileStream) [index]
+    call native ftell(fileStream) -> index
+    push index
+
+func SetFilePosition(fileStream, offset, origin) [error]
+    call native fseek(fileStream, offset, origin) -> error
+    push error
+
+func GetFileStartOrigin [origin]
+    push *SEEK_SET
+
+func GetFileCurrentOrigin [origin]
+    push *SEEK_CUR
+
+func RewindFile(fileStream)
+    call native rewind(fileStream)
+
+func ClearFileError(fileStream)
+    call native clearerr(fileStream)
+
+func CheckEOF(fileStream) [eof]
+    call native feof(fileStream) -> eof
+    push eof
+
+func CheckFileError(fileStream) [error]
+    call native ferror(fileStream) -> error
+    push error
+
+func PrintError(customMessage)
+    call native perror(customMessage)
+
+func GetStdIn [stdin]
+    push *stdin
+
+func GetStdOut [stdout]
+    push *stdout
+
+func GetStdErr [stderr]
+    push *stderr
+
+func GetEOF [eof]
+    push *EOF
+
+func GetMaxOpenedFiles [max]
+    push *FOPEN_MAX
+
+func GetMaxFilename [max]
+    push *FILENAME_MAX

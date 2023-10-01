@@ -4,7 +4,10 @@ program: Pony (importStat | function | structure | pass)* EOF;
 
 structure: 'struct' Id dataTypeDeclaration+;
 
-function: ('['(Id (',' Id)*)?']')? 'func' Id expression*;
+function:
+	'func' Id ('(' (Id (',' Id)*)? ')')? (
+		'[' (Id (',' Id)*)? ']'
+	)? expression*;
 importStat: 'import' 'native'? SConst;
 
 expression:
@@ -15,19 +18,18 @@ expression:
 	| move
 	| call
 	| push
-	| pull	
+	| pull
 	| inc
 	| dec
 	| ret;
 
 pass: 'pass' SConst;
 delete: 'delete' Id;
-jump: 'jump' ('if' condition)? 'to' Id;
+jump: 'jump' ('if' (condition | cvalue))? 'to' Id;
 label: Id ':';
 move: rvalue '->' lvalue;
 push: 'push' cvalue;
 pull: 'pull' lvalue?;
-condition: cvalue ( '=' | '!=' | '>' | '<' | '>=' | '<=') cvalue;
 inc: 'inc' (lvalue | IConst | FConst | CConst);
 dec: 'dec' (lvalue | IConst | FConst | CConst);
 ret: 'return' cvalue (',' cvalue)*;
@@ -37,57 +39,71 @@ rvalue:
 	| stacksize
 	| call
 	| getMem
+	| heap
 	| array
 	| ptr
 	| not
+	| bool
+	| condition
 	| binaryOperator
 	| cvalue;
 
 newStat: 'new' 'local'? Id;
-call: 'call' 'native'? Id ('(' ( cvalue (',' cvalue)*)? ')')? ('['lvalue (',' lvalue)*']')?;
-array: 'array' IConst;
+call:
+	'call' 'native'? Id ('(' ( cvalue (',' cvalue)*)? ')')? (
+		'[' (lvalue (',' lvalue)*)? ']'
+	)?;
+heap: 'heap' (Id | valueType | SConst)? '[' IConst ']';
+array: 'array' (Id | valueType | SConst)? '[' IConst ']';
 ptr: 'ptr' (lvalue | SConst);
 not: 'not' (lvalue | IConst | FConst | CConst);
+bool: 'bool' (lvalue | IConst | FConst | CConst);
+condition: cvalue ( '=' | '!=' | '>' | '<' | '>=' | '<=') cvalue;
 stacksize: 'ssize';
 
-binaryOperator: (
+binaryOperator: ('add' | 'sub' | 'mul' | 'div') valueType? cvalue ',' cvalue
+	| (
 		'and'
 		| 'or'
 		| 'xor'
 		| 'nor'
 		| 'nand'
 		| 'xnor'
-		| 'add'
-		| 'sub'
-		| 'mul'
-		| 'div'
 		| 'rem'
 		| 'shr'
 		| 'shl'
-	) valueType cvalue ',' cvalue;
+	) cvalue ',' cvalue;
 
 cvalue: lvalue | IConst | FConst | CConst | SConst;
 
 lvalue: Id | dot | cast | getMem;
-cast: Id 'as' (Id | valueType);
+cast: (Id | getMem | dot) 'as' (Id | valueType | SConst);
 dot: Id Id '.' Id;
-getMem: (Id | valueType)? (Id | dot | cast | IConst) '[' (Id | dot | cast | IConst)? ']';
+getMem: (Id | valueType)? (Id | dot | IConst) '[' (
+		Id
+		| dot
+		| IConst
+	)? ']';
 
 dataTypeDeclaration: (Id | valueType) Id;
 
-valueType: 'int' | 'float' | 'string';
+valueType: 'int' | 'float' | 'string' | 'byte';
 
 Pony: [pP][oO][nN][yY][!.,:]?;
-Id: '*'?[a-zA-Z_][a-zA-Z_0-9]*;
 
 IConst:
-	[+-]? (
+	'null'
+	| 'true'
+	| 'false'
+	| [+-]? (
 		Digits
 		| '0' [oO] [0-7]+
 		| '0' [xX] [0-9a-fA-F]+
 		| '0' [bB] [0-1]+
 	)
-	| 'null';
+	;
+	
+Id: '*'? [a-zA-Z_][a-zA-Z_0-9]*;
 
 FConst: [+-]? (Fract Exp? | Digits Exp);
 fragment Fract: Digits? '.' Digits | Digits '.';

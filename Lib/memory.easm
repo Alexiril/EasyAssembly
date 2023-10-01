@@ -1,0 +1,22 @@
+Pony!
+
+func CopyMemory(destination, source, bytesAmount) [destination]
+    call native memcpy(destination, source, bytesAmount) -> destination
+    push destination
+
+func MoveMemory(destination, source, bytesAmount) [destination]
+    call native memmove(destination, source, bytesAmount) -> destination
+    push destination
+
+func CompareMemory(pointerA, pointerB, bytesAmount) [result]
+    call native memcmp(pointerA, pointerB, bytesAmount) -> result
+    push result
+
+func FindByte(memoryPointer, searchValue, bytesAmount) [resultPointer, index]
+    call native memchr(memoryPointer, searchValue, bytesAmount) -> resultPointer
+    sub resultPointer, memoryPointer -> index
+    return resultPointer, index
+
+func SetMemory(memoryPointer, fillValue, bytesAmount) [memoryPointer]
+    call native memset(memoryPointer, fillValue, bytesAmount) -> memoryPointer
+    push memoryPointer

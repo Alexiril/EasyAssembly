@@ -116,15 +116,6 @@ class easmListener(ParseTreeListener):
         pass
 
 
-    # Enter a parse tree produced by easmParser#condition.
-    def enterCondition(self, ctx:easmParser.ConditionContext):
-        pass
-
-    # Exit a parse tree produced by easmParser#condition.
-    def exitCondition(self, ctx:easmParser.ConditionContext):
-        pass
-
-
     # Enter a parse tree produced by easmParser#inc.
     def enterInc(self, ctx:easmParser.IncContext):
         pass
@@ -179,6 +170,15 @@ class easmListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by easmParser#heap.
+    def enterHeap(self, ctx:easmParser.HeapContext):
+        pass
+
+    # Exit a parse tree produced by easmParser#heap.
+    def exitHeap(self, ctx:easmParser.HeapContext):
+        pass
+
+
     # Enter a parse tree produced by easmParser#array.
     def enterArray(self, ctx:easmParser.ArrayContext):
         pass
@@ -203,6 +203,24 @@ class easmListener(ParseTreeListener):
 
     # Exit a parse tree produced by easmParser#not.
     def exitNot(self, ctx:easmParser.NotContext):
+        pass
+
+
+    # Enter a parse tree produced by easmParser#bool.
+    def enterBool(self, ctx:easmParser.BoolContext):
+        pass
+
+    # Exit a parse tree produced by easmParser#bool.
+    def exitBool(self, ctx:easmParser.BoolContext):
+        pass
+
+
+    # Enter a parse tree produced by easmParser#condition.
+    def enterCondition(self, ctx:easmParser.ConditionContext):
+        pass
+
+    # Exit a parse tree produced by easmParser#condition.
+    def exitCondition(self, ctx:easmParser.ConditionContext):
         pass
 
 

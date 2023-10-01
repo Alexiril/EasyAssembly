@@ -2,7 +2,8 @@ from os import mkdir
 from os.path import isdir, join
 from struct import pack, unpack
 
-from antlr4.Parser import ParserRuleContext  # type: ignore
+from antlr4.Parser import ParserRuleContext
+from more_itertools import last  # type: ignore
 
 from easmLexer import easmLexer
 from easmParser import ErrorNode, TerminalNode, easmParser
@@ -18,6 +19,8 @@ easm2cRuntime = """
 #include <stdint.h>
 #include <malloc.h>
 #define null 0
+#define false 0
+#define true 1
 typedef struct stackNode { int64_t data; struct stackNode* next; } stackNode;
 stackNode* stackTop = NULL;
 int64_t __easm_ssize = 0;
@@ -57,9 +60,6 @@ void easm_spush(int64_t num)
     SSN0 - Structures cannot have the same name
     LSN0 - Labels inside one function cannot have the same name
     LFN0 - Label was not found in the function
-    RFV0 - Reminder of two non-integral
-    SFV0 - Right shift with two non-integral
-    SFV1 - Left shift with two non-integral
     PGE0 - CMake errors while generating solution / project
     NCC0 - CMake is not installed (or not installed properly)
     LCV0 - Local call cannot return a value
@@ -143,24 +143,44 @@ class easm2cTranslator(SharedTranslator):
             self.expressionConnection.append(ctx.start.line) # type: ignore
 
     def exitFunction(self, ctx: easmParser.FunctionContext) -> None:
-        functionName: str = str(self.terminals.pop())
-        self.terminals.pop() # 'func' word
-        
+        lastTerminal: str = str(self.terminals.pop())
+
+        results = 0
         params = list()
-        if str(ctx.children[0]) == "[": # type: ignore 
-            self.terminals.pop() # ']' symbol
+
+        if lastTerminal == "]":
+            while True:
+                lastTerminal = str(self.terminals.pop())
+                if lastTerminal == "[":
+                    break
+                if lastTerminal != ",":
+                    results += 1
+            lastTerminal = str(self.terminals.pop())
+        
+        if lastTerminal == ")":
             while True:
                 next = str(self.terminals.pop())
-                if next == "[":
+                if next == "(":
                     break
                 if next != ',':
                     params.append(next)
+            lastTerminal = str(self.terminals.pop())
+                    
+        functionName: str = lastTerminal
+        mainFunc = self.ids.getId(functionName) == "main"
+        self.terminals.pop() # 'func' word
 
-        if functionName in self.functions:
+        if functionName in [value[0] for value in self.functions]:
             self.handleException("FSN0", SharedExceptionLevel.Error, ctx,
                                  f"Functions cannot have the same name: {self.ids.getId(functionName)}")
 
-        self.functions.add(functionName)
+        self.functions.add((functionName, results, len(params)))
+
+        if mainFunc:
+            if "argc" in self.initializedLocals:
+                self.initializedLocals.remove("argc")
+            if "argv" in self.initializedLocals:
+                self.initializedLocals.remove("argv")
 
         for param in params:
             self.expressions.insert(0, f"{param} = easm_spull();")
@@ -195,6 +215,11 @@ class easm2cTranslator(SharedTranslator):
 
         funcInC: str = f"void {functionName} () {{\n    {expressions}  \n}}\n"
 
+        
+        if mainFunc:
+            wrapper = f"void {functionName} () {{main(0, NULL);}}\n\n" if self.rules.decoupleIDs else ""
+            funcInC = f"{wrapper}int main(int argc, const char** argv) {{\n    {expressions}  \n}}\n"
+
         self.expressions.clear()
 
         self.labels[functionName] = self.labelsInFunction
@@ -214,7 +239,7 @@ class easm2cTranslator(SharedTranslator):
 
         self.result.append(funcInC)
 
-        for _ in range(2):
+        for _ in range(2 + (2 if mainFunc and self.rules.decoupleIDs else 0)):
             self.expressionConnection.append(ctx.start.line) # type: ignore
 
         self.expressionConnection.extend(self.opcodesConnection)
@@ -222,14 +247,6 @@ class easm2cTranslator(SharedTranslator):
 
         for _ in range(3):
             self.expressionConnection.append(ctx.start.line) # type: ignore
-
-        if self.ids.getId(functionName) == "main":
-            self.result.append("int main() {")
-            self.result.append(f"    {functionName}();")
-            self.result.append("    return 0;")
-            self.result.append("}")
-            for _ in range(4):
-                self.expressionConnection.append(ctx.start.line) # type: ignore
 
     def exitImportStat(self, ctx: easmParser.ImportStatContext) -> None:
         value = str(self.terminals.pop())
@@ -314,7 +331,7 @@ class easm2cTranslator(SharedTranslator):
             self.terminals.pop() # 'call' word
             cstring = f"{lastTerminal}({','.join(params[::-1])})"
         else:
-            self.neededFunctions.add(lastTerminal)
+            self.neededFunctions.add((lastTerminal, len(returned), len(params)))
             for value in params:
                 self.expressions.append(f"easm_spush({value});")
                 self.opcodesConnection.append(ctx.start.line) # type: ignore
@@ -393,27 +410,25 @@ class easm2cTranslator(SharedTranslator):
 
         self.neededStructures.add(kind)
 
-        self.expressions.append(f"if ((({kind} *){name}) != NULL)")
         self.terminals.append(f"(({kind}*){name})->{param}")
-        self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitGetMem(self, ctx: easmParser.GetMemContext) -> None:
         self.terminals.pop()  # ']' symbol
 
         index = str(self.terminals.pop())  # maybe '[' symbol
         if index != '[':
-            index = f" + {index}"
             self.terminals.pop()  # '[' symbol
 
-        addr: str = str(self.terminals.pop()) + (index if index != "[" else '')
+        addr: str = str(self.terminals.pop())
 
-        kind: str = "int64_t"
+        kind: str = "int8_t"
 
         if hasattr(ctx.children[2], "getText"):  # type: ignore
             if ctx.children[2].getText() == "[":  # type: ignore
                 kind = str(self.terminals.pop())
 
-        self.terminals.append(f"*(({kind}*)({addr}))")
+        indexAddition = f" + {index} * sizeof({kind})" if index != '[' else ""
+        self.terminals.append(f"*(({kind}*)({addr}{indexAddition}))")
 
     def exitMove(self, ctx: easmParser.MoveContext) -> None:
         right = str(self.terminals.pop())
@@ -426,6 +441,9 @@ class easm2cTranslator(SharedTranslator):
     def exitJump(self, ctx: easmParser.JumpContext) -> None:
         label = str(self.terminals.pop())
         self.terminals.pop() # 'to' word
+
+        if label[0] == "#":
+            pass
 
         self.neededLabels.add(label)
 
@@ -448,7 +466,7 @@ class easm2cTranslator(SharedTranslator):
         if action == '=':
             action = '=='
 
-        self.terminals.append(f"{left} {action} {right}")
+        self.terminals.append(f"({left} {action} {right})")
 
     def exitLvalue(self, ctx: easmParser.LvalueContext) -> None:
         value = self.terminals.pop()
@@ -464,17 +482,16 @@ class easm2cTranslator(SharedTranslator):
         first = str(self.terminals.pop())
 
         double: bool = False
+        kind = None
         if ctx.getChildCount() == 5:
             kind = str(self.terminals.pop())
             if kind == "double":
                 self.doubleResult = True
                 double = True
-        else:
-            kind = "int64_t"
 
-        if first in self.ids.decouplingUid:
+        if first in self.ids.decouplingUid and kind != None:
             first: str = f"*({kind}*)(& {first})"
-        if second in self.ids.decouplingUid:
+        if second in self.ids.decouplingUid and kind != None:
             second: str = f"*({kind}*)(& {second})"
 
         action = str(self.terminals.pop())
@@ -489,9 +506,6 @@ class easm2cTranslator(SharedTranslator):
             case 'div':
                 result = (f"({first}) / ({second})")
             case 'rem':
-                if not "int" in kind:
-                    self.handleException("RFV0", SharedExceptionLevel.Error, ctx,
-                                         f"Attempt to get the reminder of two non-integral values: {first}, {second}")
                 result = (f"({first}) % ({second})")
             case 'and':
                 result = (f"({first}) & ({second})")
@@ -506,14 +520,8 @@ class easm2cTranslator(SharedTranslator):
             case 'xnor':
                 result = (f"~(({first}) ^ ({second}))")
             case 'shr':
-                if not "int" in kind:
-                    self.handleException("SFV0", SharedExceptionLevel.Error, ctx,
-                                         f"Attempt to shift with two non-integral values: {first}, {second}")
                 result = (f"({first}) >> ({second})")
             case 'shl':
-                if not "int" in kind:
-                    self.handleException("SFV1", SharedExceptionLevel.Error, ctx,
-                                         f"Attempt to shift with two non-integral values: {first}, {second}")
                 result = (f"({first}) << ({second})")
             case _:
                 result = (f"({first}) {action} ({second})")
@@ -528,27 +536,53 @@ class easm2cTranslator(SharedTranslator):
         value = str(self.terminals.pop())
         self.terminals.pop()  # 'inc' word
 
-        self.expressions.append(f"{value}++;")
+        self.expressions.append(f"({value})++;")
         self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitDec(self, ctx: easmParser.DecContext) -> None:
         value = str(self.terminals.pop())
         self.terminals.pop()  # 'dec' word
 
-        self.expressions.append(f"{value}--;")
+        self.expressions.append(f"({value})--;")
         self.opcodesConnection.append(ctx.start.line) # type: ignore
 
     def exitNot(self, ctx: easmParser.NotContext) -> None:
         value = str(self.terminals.pop())
         self.terminals.pop()  # 'not' word
 
-        self.terminals.append(f"~{value}")
+        self.terminals.append(f"~({value})")
+
+    def exitBool(self, ctx: easmParser.BoolContext) -> None:
+        value = str(self.terminals.pop())
+        self.terminals.pop() # 'bool' word
+
+        self.terminals.append(f"(({value}) != 0)")
+
+    def exitHeap(self, ctx: easmParser.HeapContext) -> None:
+        self.terminals.pop() # ']' symbol
+        size = str(self.terminals.pop())
+        self.terminals.pop() # '[' symbol
+        kind = str(self.terminals.pop()) # or 'heap' word
+    
+        if kind != "heap":
+            self.terminals.pop() # 'heap' word
+        else:
+            kind = "int8_t"
+
+        self.terminals.append(f"(int64_t)malloc({size} * sizeof({kind}))")
 
     def exitArray(self, ctx: easmParser.ArrayContext) -> None:
+        self.terminals.pop() # ']' symbol
         size = str(self.terminals.pop())
-        self.terminals.pop() # 'array' word
+        self.terminals.pop() # '[' symbol
+        kind = str(self.terminals.pop()) # or 'array' word
+    
+        if kind != "array":
+            self.terminals.pop() # 'array' word
+        else:
+            kind = "int8_t"
 
-        self.expressions.append(f"int64_t arr{self.arrayNumber}[{size}] = {{ 0 }};")
+        self.expressions.append(f"{kind} arr{self.arrayNumber}[{size}] = {{ 0 }};")
         self.terminals.append(f"&arr{self.arrayNumber}")
 
         self.arrayNumber += 1
@@ -564,11 +598,13 @@ class easm2cTranslator(SharedTranslator):
     def exitValueType(self, ctx: easmParser.ValueTypeContext) -> None:
         kind = str(self.terminals.pop())
         if kind == "string":
-            self.terminals.append("const char*")
+            self.terminals.append("char*")
         elif kind == "int":
             self.terminals.append("int64_t")
         elif kind == "float":
             self.terminals.append("double")
+        elif kind == "byte":
+            self.terminals.append("int8_t")
         else:
             self.terminals.append(kind)
 
@@ -599,6 +635,7 @@ class easm2cTranslator(SharedTranslator):
         kind = str(self.terminals.pop())
         self.terminals.pop()  # 'as' word
         value = str(self.terminals.pop())
+        kind = kind.replace('"', '')
 
         self.terminals.append(f"*(({kind}*)(& {value}))")
 

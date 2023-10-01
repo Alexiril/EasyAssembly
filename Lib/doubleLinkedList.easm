@@ -5,8 +5,7 @@ struct DLListNode
 	int next_ptr
 	int prev_ptr
 
-[value, head] 
-func DLListAppend // => [head]
+func DLListAppend(value, head) [head]
 	new DLListNode -> newNode
 
 	value -> DLListNode newNode.data
@@ -20,10 +19,9 @@ func DLListAppend // => [head]
 	end:
 	newNode -> head
 
-	return head
+	push head
 
-[head]
-func DLListPull // => [head, data]
+func DLListPull(head) [head, data]
 	jump if head = null to end
 
 	DLListNode head.prev_ptr -> previous
@@ -41,8 +39,7 @@ func DLListPull // => [head, data]
 
 	return head, data
 
-[head]
-func DLListSize // => [size]
+func DLListSize(head) [size]
 	
 	jump if head = null to end
 
@@ -58,10 +55,9 @@ func DLListSize // => [size]
 	jump if DLListNode head.prev_ptr != null to loopHead
 
 	end:
-	return size
+	push size
 
-[index, head]
-func DLListRemoveAt // => [head, data]
+func DLListRemoveAt(index, head) [head, data]
 
 	0 -> data
 
@@ -97,8 +93,7 @@ func DLListRemoveAt // => [head, data]
 	end:
 	return head, data
 
-[index, head]
-func DLListGetAt // => [value]
+func DLListGetAt(index, head) [value]
 	head -> value
 	0 -> counter
 
@@ -114,10 +109,9 @@ func DLListGetAt // => [value]
 	jump if counter < index to loopHead
 
 	end:
-	return value
+	push value
 
-[value, index, head]
-func DLListInsert // => [head]
+func DLListInsert(value, index, head) [head]
 	call DLListGetAt(index, head) [node]
 
 	jump if node = null to end
@@ -135,10 +129,9 @@ func DLListInsert // => [head]
 	newNode -> DLListNode next.prev_ptr
 
 	end:
-	return head
+	push head
 
-[head]
-func DLListClear // => [null pointer]
+func DLListClear(head) [ptr_null]
 	call DLListSize(head) [size]
 	jump if size = 0 to end
 	size -> counter

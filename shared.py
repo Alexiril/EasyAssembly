@@ -7,7 +7,6 @@ from easmListener import easmListener
 class SharedRules:
 
     decoupleIDs: bool = True
-    noRuntime: bool = False
 
 
 class SharedId:
@@ -81,8 +80,8 @@ class SharedTranslator(easmListener):
         self.filecode: str = filecode
         self.filename: str = filename
         self.imports: set[str] = set()
-        self.functions: set[str] = set()
-        self.neededFunctions: set[str] = set()
+        self.functions: set[tuple[str, int, int]] = set()
+        self.neededFunctions: set[tuple[str, int, int]] = set()
         self.structures: set[str] = set()
         self.neededStructures: set[str] = set()
         self.externalValues: set[str] = set()

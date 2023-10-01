@@ -5,10 +5,10 @@ Pony!
 /* That's a block comment here 
 */
 
-import native "stdio.h"
+import "stdio"
+import "string"
 
-[value, index] 
-func mem_test// => [memory_section]
+func mem_test(value, index) [memory_section]
     value[index] -> memory_section
 
     return memory_section
@@ -21,8 +21,7 @@ struct Line
     Point p1
     Point p2
 
-[x, y]
-func struct_test // => [line]
+func struct_test(x, y) [line]
     new local Point -> p0
     x -> Point p0.x
     y -> Point p0.y
@@ -41,14 +40,13 @@ func struct_test // => [line]
 
     return line
 
-[one, two]
-func math_test // => [dsum]
+func math_test(one, two) [dsum]
     // Standard signed 64-bit integer
-    add int one, two -> stdsum
-    sub int one, two -> stdsub
-    mul int one, two -> stdmul
-    div int one, two -> stddiv
-    rem int one, two -> stdrem
+    add one, two -> stdsum
+    sub one, two -> stdsub
+    mul one, two -> stdmul
+    div one, two -> stddiv
+    rem one, two -> stdrem
 
     // Double (float 64-bit)
     add float one, two -> dsum
@@ -58,8 +56,7 @@ func math_test // => [dsum]
 
     return dsum
 
-[counter]
-func flow_control_test // => []
+func flow_control_test(counter) []
     7 -> a
     8 -> b
 
@@ -82,10 +79,11 @@ func flow_control_test // => []
 
     jump if counter > 0 to iteration
 
-func pass_test // => []
+func pass_test []
     pass "printf(\"pass is working!\n\");"
+func main()
+    call native printf("argc = %d, argv[0] = %s\n", *argc, *argv[] as string)
 
-func main
     90 -> deg90
 
     call native printf("here first call goes\n")
@@ -99,7 +97,7 @@ func main
 
     call native printf("value is %lld\n", mem_test_result)
 
-    call native printf("yeah, str is %s\n", str)
+    call native printf("yeah, str is: %s\n", str as string)
 
     call struct_test(20, 17) [struct_result]
 
@@ -124,7 +122,7 @@ func main
     push top
     call native printf("by the way, stack size is %lld, top is %lld\n", size, top)
 
-    array 1024 -> arr
+    array [1024] -> arr
     0 -> counter
 
     loopHead:
@@ -136,4 +134,25 @@ func main
 
     dec counter
 
-    call native printf("yeah, array is working, last value is %lld", arr[counter])
+    call native printf("yeah, array is working, last value is %lld\n", arr[counter])
+
+    heap [16] -> container
+
+    'a' -> byte container[0]
+    'b' -> byte container[1]
+    'c' -> byte container[2]
+    '\x0' -> byte container[3]
+
+    'd' -> container[4]
+    'e' -> container[5]
+    'f' -> container[6]
+    '\x0' -> container[7]
+
+    'g' -> container[8]
+    'h' -> container[9]
+    'i' -> container[10]
+    '\x0' -> container[11]
+
+    call GetStringWithIndex(container, 0) [result]
+
+    call native printf("getting string works, the string is: %s\n", result as string)

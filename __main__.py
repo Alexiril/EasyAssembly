@@ -1,20 +1,22 @@
 #!/usr/bin/env python
 
+from argparse import ArgumentParser, Namespace
+from os.path import join
+from random import choice, randint
 from re import search
-from shared import SharedId, SharedRules
-from easmParser import easmParser
-from easmLexer import easmLexer
-from easmErrorListener import easmErrorListener
+from sys import argv
+from typing import Any
+
 from antlr4 import (CommonTokenStream, FileStream,  # type: ignore
                     ParseTreeWalker)
-from shared import SharedException, SharedHandler
-from easm2c import easm2c
 from genericpath import isdir, isfile
-from sys import argv
-from os.path import join
-from argparse import ArgumentParser, Namespace
-from typing import Any
-from random import choice, randint
+
+from easm2c import easm2c
+from easmErrorListener import easmErrorListener
+from easmLexer import easmLexer
+from easmParser import easmParser
+from shared import SharedException, SharedHandler, SharedId, SharedRules
+
 ponyPhrases: list[str] = [
     "You know what they say, friendship truly is the magic.",
     "Wow, that's my little pony!",
@@ -27,7 +29,6 @@ ponyPhrases: list[str] = [
 
 if __name__ != '__main__':
     exit(-1)
-
 
 separated = ("EASM\n\n" + choice(ponyPhrases)).split(" ")
 
@@ -51,12 +52,10 @@ parser.add_argument('out', type=str, default='.',
                     help="path to output folder")
 parser.add_argument('-hd', '--handler', required=False, type=str, default="easm2c",
                     help=f"set handler. Avaliable: {avaliable_handlers_names}")
-parser.add_argument('-nr', '--noruntime', required=False, action='store_true',
-                    help="removes runtime part from the translated result")
+parser.add_argument('-nd', '--nodecouple', required=False, action='store_true',
+                    help="prohibits the translator to decouple ids")
 
 args: Namespace = parser.parse_args(argv[1:])
-
-noruntime: bool = args.noruntime
 
 if not args.handler in avaliable_handlers_names:
     print(f"Sorry, the handler '{args.handler}' is not avaliable.")
@@ -87,7 +86,6 @@ if not isdir(outFolder):
 
     mkdir(outFolder)
 
-
 files: list[str] = [args.source]
 preparedFiles: list[str] = list()
 baseFolder: str = '.'
@@ -96,18 +94,18 @@ if len(clearedAsmFile.split("/")) > 1:
     baseFolder = "/".join(clearedAsmFile.split("/")[:-1])
 includedFiles: set[str] = set()
 neededStructures: set[str] = set()
-neededFunctions: set[str] = set()
-declaredFunction: dict[str, str] = dict()
+neededFunctions: set[tuple[str, int, int]] = set()
+declaredFunction: dict[str, tuple[str, int, int]] = dict()
 declaredStructures: dict[str, str] = dict()
 perFileCodeConnection: list[list[int]] = list()
 codeConnection: list[tuple[str, int]] = list()
 result: list[str] = list()
 ids = SharedId()
 rules = SharedRules()
-rules.noRuntime = noruntime
+
+rules.decoupleIDs = args.nodecouple
 
 # Translate step
-
 
 def checkExt(filename: str) -> str:
     if isfile(filename):
@@ -120,7 +118,6 @@ def checkExt(filename: str) -> str:
         return f"{filename}.eab"
     return ''
 
-
 def findFile(filename: str) -> str:
 
     value: str = checkExt(filename)
@@ -129,7 +126,6 @@ def findFile(filename: str) -> str:
     if value == '':
         value = checkExt(join("Lib", filename))
     return value
-
 
 print(f"{handler.name.upper()} Handler v{'.'.join(map(str, handler.version))}\n")
 
@@ -159,7 +155,7 @@ while len(files) > 0:
     walker.walk(listener, tree)
     result.insert(0, str(listener))
     imports: set[str] = listener.imports
-    funcs: set[str] = listener.functions
+    funcs: set[tuple[str, int, int]] = listener.functions
     structs: set[str] = listener.structures
     for struct in listener.neededStructures:
         neededStructures.add(struct)
@@ -171,12 +167,12 @@ while len(files) > 0:
         for exception in listener.exceptions:
             print(f"\033[91m{exception}\033[0m")
     for func in funcs:
-        if func in declaredFunction:
+        if func[0] in declaredFunction:
             print(
-                f"\033[91mFunction '{func}' is already defined. Functions cannot share same name. Files: '{declaredFunction[func]}', '{files[0]}'\033[0m")
+                f"\033[91mFunction '{func}' is already defined. Functions cannot share same name. Files: '{declaredFunction[func[0]]}', '{files[0]}'\033[0m")
             err = True
         else:
-            declaredFunction[func] = files[0]
+            declaredFunction[func[0]] = (files[0], func[1], func[2])
     for struct in structs:
         if struct in declaredStructures:
             print(
@@ -194,15 +190,20 @@ while len(files) > 0:
     files.extend(imports)
 
 for func in neededFunctions:
-        if not func in declaredFunction:
-            print(
-                f"\033[93mFunction '{ids.getId(func)}' is needed, but not found in EASM code.'\033[0m")
+    if not func[0] in declaredFunction:
+        print(
+            f"\033[93mFunction '{ids.getId(func[0])}' is needed, but not found in EASM code.'\033[0m")
+    elif func[2] != declaredFunction[func[0]][2]:
+        print(
+            f"\033[93mThe number of passed arguments does not match, it may corrupt the stack. Function '{ids.getId(func[0])}' gets {declaredFunction[func[0]][2]} values, but call sends {func[2]} values.\033[0m")
+    elif func[1] != declaredFunction[func[0]][1]:
+        print(
+            f"\033[93mThe number of returned values does not match, it may corrupt the stack. Function '{ids.getId(func[0])}' returns {declaredFunction[func[0]][1]} values, but call accepts {func[1]} values.\033[0m")
 
-if not noruntime:
-    result.insert(0, handler.runtime)
-    perFileCodeConnection.insert(
-        0, [-1 for _ in range(len(handler.runtime.split("\n")))])
-    preparedFiles.insert(0, "EASM Runtime")
+result.insert(0, handler.runtime)
+perFileCodeConnection.insert(
+    0, [-1 for _ in range(len(handler.runtime.split("\n")))])
+preparedFiles.insert(0, "EASM Runtime")
 
 for index in range(len(result)):
     for line in range(len(result[index].split("\n"))):
@@ -211,9 +212,6 @@ for index in range(len(result)):
 
 writable: str = "\n".join(result)
 lines: list[str] = writable.split('\n')
-
-# for index, value in enumerate(codeConnection):
-#     print(f"{lines[index]} = {value[1]}")
 
 print("\033[92mTranslated successfully.\033[0m")
 
@@ -226,9 +224,9 @@ if args.command == "translate":
 # Building step
 
 for struct in neededStructures:
-        if not struct in declaredStructures:
-            print(
-                f"\033[93mStructure '{ids.getId(struct)}' is needed, but not found in EASM code.\033[0m")
+    if not struct in declaredStructures:
+        print(
+            f"\033[93mStructure '{ids.getId(struct)}' is needed, but not found in EASM code.\033[0m")
 
 def handleBuilderErr(error: SharedException) -> str:
     global codeConnection
@@ -236,8 +234,9 @@ def handleBuilderErr(error: SharedException) -> str:
     actualCode: tuple[str, int] = codeConnection[error.line]
 
     line: str = ""
-    with open(actualCode[0]) as file:
-        line = file.readlines()[actualCode[1]-1].rstrip()
+    if actualCode[0] != "EASM Runtime":
+        with open(actualCode[0]) as file:
+            line = file.readlines()[actualCode[1]-1].rstrip()
     lang: str = "".join(['%' + hex(ord(x))[2:] for x in handler.lang])
 
     searcherr = search(r'error (\w+)', error.msg)
@@ -245,12 +244,11 @@ def handleBuilderErr(error: SharedException) -> str:
     if searcherr == None:
         return f"Compile {error.level.name} at ({actualCode[1]}:1) in '{actualCode[0]}':\n   {error.msg}\n"
 
-    errorCode: str | Any = searcherr.group(1) # type: ignore
-    
+    errorCode: str | Any = searcherr.group(1)  # type: ignore
+
     bytesErrorCode: str = "".join(['%' + hex(ord(x))[2:] for x in errorCode])
     newMsg = f"{errorCode} error at: {line}\n   https://www.google.com/search?q={bytesErrorCode}+{lang}\n"
     return f"({error.code}) Compile {error.level.name} at ({actualCode[1]}:1) in '{actualCode[0]}':\n   {newMsg}\n"
-
 
 builder = handler.builder(outFolder)
 builder.build()

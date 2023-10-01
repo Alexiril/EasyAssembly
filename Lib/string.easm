@@ -1,0 +1,82 @@
+Pony!
+
+import native "string.h"
+import native "errno.h"
+
+func StringSize(stringPointer) [size]
+    call native strlen(stringPointer) -> size
+    push size
+
+func UniteStrings(firstStringPointer, secondStringPointer) [resultStringPointer]
+    call StringSize(firstStringPointer) [firstSize]
+    call StringSize(secondStringPointer) [secondSize]
+
+    add int firstSize, secondSize -> finalSize
+
+    call native malloc(finalSize) -> resultStringPointer
+
+    jump if resultStringPointer = null to end
+
+    call native strcat(resultStringPointer, firstStringPointer)
+    call native strcat(resultStringPointer, secondStringPointer)
+
+    end:
+    push resultStringPointer
+
+func CompareStrings(firstStringPointer, secondStringPointer) [result]
+    call native strcmp(firstStringPointer, secondStringPointer) -> result
+    push result
+
+func CopyString(stringPointer) [newStringPointer]
+    call StringSize(stringPointer) [size]
+    call native malloc(size) -> newStringPointer
+
+    jump if newStringPointer = null to end
+
+    call native strcpy(newStringPointer, stringPointer)
+
+    end:
+    push newStringPointer
+
+func GetStringWithIndex(startPointer, stringIndex) [stringPointer]
+    jump if stringIndex = 0 to end
+
+    loopHead:
+
+    call native strlen(startPointer) -> size
+    inc size
+    add startPointer, size -> startPointer
+
+    dec stringIndex
+
+    jump if stringIndex > 0 to loopHead
+
+    end:
+    push startPointer
+
+func GetSystemErrorString [stringPointer]
+    call native strerror(*errno) -> stringPointer
+    push stringPointer
+
+func FindSubstring(sourceString, substring) [substringPointer]
+    call native strstr(sourceString, substring) -> substringPointer
+    push substringPointer
+
+func FindCharacter(sourceString, character) [pointer, index]
+    call native strchr(sourceString, character) -> pointer
+    sub pointer, sourceString -> index
+    return pointer, index
+
+func FindRightCharacter(sourceString, character) [pointer, index]
+    call native strrchr(sourceString, character) -> pointer
+    sub pointer, sourceString -> index
+    return pointer, index
+
+func LocateCharacter(sourceString, charset) [pointer, index]
+    call native strpbrk(sourceString, charset) -> pointer
+    sub pointer, sourceString -> index
+    return pointer, index
+
+func SplitString(sourceString, delemiters) [pointer]
+    call native strtok(sourceString, delemiters) -> pointer
+    push pointer
